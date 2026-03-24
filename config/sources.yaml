@@ -1,0 +1,11 @@
+sources:
+  website:
+    email_selectors:
+      - "mailto:"
+      - ".contact-email"
+    phone_patterns:
+      - "+27"
+      - "+1"
+
+  google_maps:
+    enabled: true

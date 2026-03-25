@@ -135,9 +135,13 @@ def run_ingestion_with_sources_config(
     out_dir = output_summary_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    leads_json_path = out_dir / "leads.json"
-    leads_csv_path = out_dir / "leads.csv"
-    rejected_path = out_dir / "rejected_rows.json"
+    # When the caller uses a timestamp-named output directory, bake the same
+    # timestamp into filenames so artifacts are unique and easy to sort.
+    run_ts = out_dir.name
+
+    leads_json_path = out_dir / f"leads_{run_ts}.json"
+    leads_csv_path = out_dir / f"leads_{run_ts}.csv"
+    rejected_path = out_dir / f"rejected_rows_{run_ts}.json"
 
     leads_json_path.write_text(json.dumps(deduped_leads, indent=2), encoding="utf-8")
 

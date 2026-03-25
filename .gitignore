@@ -18,9 +18,8 @@ build/
 dist/
 *.log
 
-# Output artifacts (keep directory only)
-output/*.csv
-output/*.json
+# Output artifacts (keep directory + gitkeep only)
+output/**
 !output/.gitkeep
 
 # Runtime logs (keep directory only)

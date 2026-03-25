@@ -59,25 +59,43 @@ def _run_api(args: argparse.Namespace) -> None:
 
 def _run_pipeline(args: argparse.Namespace) -> None:
     log = _configure_logging(args.log_level)
+
+    input_format = args.input_format
+    if input_format is None:
+        suffix = Path(args.input).suffix.lower()
+        if suffix == ".json":
+            input_format = "json"
+        elif suffix == ".csv":
+            input_format = "csv"
+        else:
+            input_format = "csv"
+
     log.info(
         "Running pipeline with input={}, format={}, config={}, output={}",
         args.input,
-        args.input_format,
+        input_format,
         args.config,
         args.output,
     )
 
     from backend.core.ingestion import run_ingestion
 
+    # Create a dedicated timestamped folder for all artifacts from this run.
+    run_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = Path(args.output) / run_ts
+    run_dir.mkdir(parents=True, exist_ok=True)
+    output_summary_path = run_dir / f"run_summary_{run_ts}.json"
+
     summary = run_ingestion(
         input_path=args.input,
-        input_format=args.input_format,
+        input_format=input_format,
         config_path=args.config,
-        output_summary_path=args.output,
+        output_summary_path=output_summary_path,
     )
 
     log.info(
-        "Ingestion completed (deduped_rows={}, rejected_rows={})",
+        "Ingestion completed (run_dir={}, deduped_rows={}, rejected_rows={})",
+        str(run_dir),
         summary["counts"]["deduped_rows"],
         summary["counts"]["rejected_rows"],
     )
@@ -113,7 +131,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--input-format",
-        default="csv",
+        default=None,
         choices=["csv", "json", "propflux"],
         help="Input format type.",
     )
@@ -124,8 +142,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--output",
-        default="output/run_summary.json",
-        help="Path to pipeline summary output.",
+        default="output",
+        help="Base output directory (a timestamped subfolder will be created).",
     )
     run_parser.add_argument(
         "--log-level",

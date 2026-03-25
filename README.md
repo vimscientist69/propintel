@@ -35,19 +35,21 @@ Examples:
 - Start API with custom host/port:
   - `python runner.py api --host 0.0.0.0 --port 8080 --reload --log-level debug`
 - Run pipeline with CSV input:
-  - `python runner.py run --input data/leads.csv --input-format csv --config config/sources.yaml --output output/run_summary.json --log-level info`
+  - `python runner.py run --input data/leads.csv --input-format csv --config config/sources.yaml --output output --log-level info`
 - Run pipeline with PropFlux input:
   - `python runner.py run --input data/propflux_export.json --input-format propflux`
 
 All CLI runs log to `logs/propintel_YYYYMMDD_HHMMSS.log` and stderr via `loguru`.
 
 ### Pipeline Outputs (CLI `run`)
-Given `--output <path>`, the CLI writes into `dirname(<path>)`:
+The CLI creates a timestamped folder under `--output` (defaults to `output/`), like:
+`output/20260325_153000/`
 
-- `leads.json`
-- `leads.csv`
-- `rejected_rows.json`
-- `<path>`: ingestion summary JSON
+Inside that folder, filenames include the same timestamp:
+- `leads_<timestamp>.json`
+- `leads_<timestamp>.csv`
+- `rejected_rows_<timestamp>.json`
+- `run_summary_<timestamp>.json`
 
 ## API Endpoints
 

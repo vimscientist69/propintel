@@ -53,36 +53,34 @@ Given `--output <path>`, the CLI writes into `dirname(<path>)`:
 
 These endpoints trigger the same Week 1 ingestion pipeline as the CLI.
 
-### Upload
-- `POST /upload` (multipart form)
+### Submit Job
+- `POST /jobs` (multipart form)
 
-Example:
-
-```bash
-curl -s -X POST "http://127.0.0.1:8000/upload" \
-  -F "file=@data/leads.csv" \
-  -F "input_format=csv" \
-  -F "config_path=config/sources.yaml"
-```
-
-This returns a `job_id`.
-
-### Create / Run Job
-- `POST /jobs` (JSON body)
+Request form fields:
+- `file`: dataset upload
+- `input_format` (optional, default `csv`): `csv | json | propflux`
 
 Example:
 
 ```bash
 curl -s -X POST "http://127.0.0.1:8000/jobs" \
-  -H "Content-Type: application/json" \
-  -d '{"job_id":"<job_id>"}'
+  -F "file=@data/leads.csv" \
+  -F "input_format=csv"
 ```
 
-### Check Status
+Response:
+- `{ "job_id": "<job_id>", "status": "processing" }`
+
+### Poll Status
 - `GET /jobs/{job_id}`
 
 ### Fetch Results
-- `GET /results/{job_id}`
+- `GET /jobs/{job_id}/results`
+
+Behavior:
+- If not completed: HTTP `202` with `{ "job_id": "...", "status": "<processing|uploaded|...>" }`
+- If completed: HTTP `200` with `{ "job_id": "...", "status": "completed", "leads": [ ... ] }`
+- If failed: HTTP `500` with `{ "job_id": "...", "status": "failed", "error": "..." }`
 
 ## Notes
 

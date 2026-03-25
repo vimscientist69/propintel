@@ -26,3 +26,5 @@ output/*.json
 # Runtime logs (keep directory only)
 logs/*
 !logs/.gitkeep
+
+data/

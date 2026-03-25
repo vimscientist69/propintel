@@ -30,7 +30,6 @@ def _configure_logging(level: str):
 
 def _run_api(args: argparse.Namespace) -> None:
     import uvicorn
-    from backend.api.routes import app
 
     log = _configure_logging(args.log_level)
     log.info(
@@ -40,8 +39,17 @@ def _run_api(args: argparse.Namespace) -> None:
         args.reload,
     )
 
+    # Uvicorn requires an import string (not an app object) to enable reload/workers.
+    app_target: str | object
+    if args.reload:
+        app_target = "backend.api.routes:app"
+    else:
+        from backend.api.routes import app
+
+        app_target = app
+
     uvicorn.run(
-        app,
+        app_target,
         host=args.host,
         port=args.port,
         reload=args.reload,

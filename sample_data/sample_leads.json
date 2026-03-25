@@ -1,0 +1,46 @@
+[
+  {
+    "company": "Southern Cape Properties",
+    "agent": "Jacques Davie",
+    "url": "https://southerncapeproperties.co.za",
+    "phone": "082 907 8377",
+    "city": "George",
+    "province": "Western Cape",
+    "origin": "manual"
+  },
+  {
+    "business_name": "Chas Everitt Randburg",
+    "agent_name": "Jacqui Greenwood",
+    "website": "https://www.chaseveritt.co.za",
+    "tel": "083 297 7855",
+    "location": "Sundowner, Gauteng",
+    "source": "manual"
+  },
+  {
+    "agency_name": "Private Property",
+    "representative": "Pieter Botha",
+    "domain": "privateproperty.co.za",
+    "agent_email": "leads@privateproperty.co.za",
+    "mobile": "+27 84 123 4567",
+    "location": "Sandton, Johannesburg, Gauteng",
+    "source": "manual"
+  },
+  {
+    "company": "Century 21",
+    "person": "Amanda Naidoo",
+    "homepage": "https://c21.co.za",
+    "mail": "amanda@century21.co.za",
+    "telephone": "+27 82 555 0199",
+    "region": "Cape Town, Western Cape",
+    "origin": "manual"
+  },
+  {
+    "listing_context": "Keller Williams South Africa",
+    "agent": "Tessa Mokoena",
+    "url": "https://www.kw.co.za",
+    "email": "tessa@kw.co.za",
+    "phone": "082 555 7788",
+    "location": "Durban, KwaZulu-Natal",
+    "source": "manual"
+  }
+]

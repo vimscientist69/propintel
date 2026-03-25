@@ -1,4 +1,64 @@
 sources:
+  input:
+    # Which canonical identity fields must be present after mapping.
+    # For the MVP this primarily means having a business/agency name.
+    required_any:
+      - company_name
+
+    # Map source-specific column/header names into canonical lead fields.
+    # Keys and aliases are matched case-insensitively.
+    schema_aliases:
+      company_name:
+        - company_name
+        - company
+        - agency
+        - business
+        - business_name
+        - businessname
+        - listing_context
+        - listingcontext
+      agent_name:
+        - agent_name
+        - agent
+        - contact_person
+        - person
+        - representative
+      website:
+        - website
+        - site
+        - url
+        - homepage
+        - domain
+      email:
+        - email
+        - emails
+        - contact_email
+        - contactemail
+        - mail
+      phone:
+        - phone
+        - phones
+        - mobile
+        - telephone
+        - tel
+      location:
+        - location
+        - city
+        - town
+        - region
+        - province
+        - state
+        - country
+      source:
+        - source
+        - origin
+        - lead_source
+        - data_source
+
+    # Defaults applied during mapping when fields are missing/empty.
+    defaults:
+      source: input
+
   website:
     email_selectors:
       - "mailto:"

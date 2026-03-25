@@ -305,34 +305,35 @@ The final project must include:
 
 ## **Week 1**
 
-- input system (CSV + schema handling)
-- basic website enrichment
+- [ ] input system (CSV + schema handling)
+- [ ] basic website enrichment
 
 ## **Week 2**
 
-- Google Maps integration
-- contact extraction + normalization
+- [ ] Google Maps integration
+- [ ] contact extraction + normalization
+
 ## **Week 3**
 
-- verification logic
-- lead scoring system
-- API endpoints
+- [ ] verification logic
+- [ ] lead scoring system
+- [ ] API endpoints
 
 ## **Week 4**
 
-- dashboard
-- deployment
-- polish + documentation
+- [ ] dashboard
+- [ ] deployment
+- [ ] polish + documentation
 
 ---
 
 # **🧠 Future Enhancements (Optional)**
 
-- email validation APIs
-- LinkedIn enrichment
-- CRM integrations (HubSpot, Pipedrive)
-- scheduling / recurring jobs
-- multi-region scaling
+- [ ] email validation APIs
+- [ ] LinkedIn enrichment
+- [ ] CRM integrations (HubSpot, Pipedrive)
+- [ ] scheduling / recurring jobs
+- [ ] multi-region scaling
 
 ---
 

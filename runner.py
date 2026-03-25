@@ -50,8 +50,6 @@ def _run_api(args: argparse.Namespace) -> None:
 
 
 def _run_pipeline(args: argparse.Namespace) -> None:
-    import yaml
-
     log = _configure_logging(args.log_level)
     log.info(
         "Running pipeline with input={}, format={}, config={}, output={}",
@@ -61,26 +59,20 @@ def _run_pipeline(args: argparse.Namespace) -> None:
         args.output,
     )
 
-    config_path = Path(args.config)
-    if not config_path.exists():
-        log.error("Config file not found: {}", config_path)
-        raise FileNotFoundError(f"Config file not found: {config_path}")
+    from backend.core.ingestion import run_ingestion
 
-    with config_path.open("r", encoding="utf-8") as handle:
-        config_data = yaml.safe_load(handle) or {}
-
-    output_path = Path(args.output)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Placeholder until pipeline orchestration is implemented.
-    output_path.write_text(
-        "Pipeline scaffold executed.\n"
-        f"input={args.input}\n"
-        f"format={args.input_format}\n"
-        f"config_sources={list((config_data.get('sources') or {}).keys())}\n",
-        encoding="utf-8",
+    summary = run_ingestion(
+        input_path=args.input,
+        input_format=args.input_format,
+        config_path=args.config,
+        output_summary_path=args.output,
     )
-    log.info("Pipeline run completed. Wrote {}", output_path)
+
+    log.info(
+        "Ingestion completed (deduped_rows={}, rejected_rows={})",
+        summary["counts"]["deduped_rows"],
+        summary["counts"]["rejected_rows"],
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -124,7 +116,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument(
         "--output",
-        default="output/run_summary.txt",
+        default="output/run_summary.json",
         help="Path to pipeline summary output.",
     )
     run_parser.add_argument(

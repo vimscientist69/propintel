@@ -60,12 +60,25 @@ sources:
       source: input
 
   website:
+    enabled: true
+    discover_with_serper: true
+    request_timeout_seconds: 8
+    serper_timeout_seconds: 6
+    user_agent: "PropIntelBot/0.1 (+https://example.com)"
     email_selectors:
       - "mailto:"
       - ".contact-email"
     phone_patterns:
       - "+27"
       - "+1"
+    chatbot_keywords:
+      - "chatbot"
+      - "live chat"
+      - "intercom"
+      - "drift"
+      - "tawk.to"
+      - "zendesk chat"
+      - "whatsapp chat"
 
   google_maps:
     enabled: true

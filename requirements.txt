@@ -6,3 +6,4 @@ pandas
 pyyaml
 python-multipart
 loguru
+python-dotenv

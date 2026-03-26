@@ -297,9 +297,7 @@ def load_propflux_mapped(
         # Keep this mapping explicit and stable for the MVP.
         canonical_row: dict[str, Any] = {
             "company_name": record.get("agency_name"),
-            "location": record.get("location"),
             "agent_name": record.get("agent_name"),
-            "website": record.get("listing_url"),
             "phone": record.get("agent_phone"),
             "email": record.get("agent_email") or record.get("email"),
             "source": record.get("source_site") or record.get("source"),

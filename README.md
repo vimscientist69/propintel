@@ -51,6 +51,13 @@ Inside that folder, filenames include the same timestamp:
 - `rejected_rows_<timestamp>.json`
 - `run_summary_<timestamp>.json`
 
+### Basic Website Enrichment
+- Website enrichment runs during pipeline processing (best effort, non-fatal).
+- If a lead has no `website`, the pipeline can attempt discovery via Serper using `company_name` (+ optional `location`).
+- If no website is found, enrichment is skipped for that lead.
+- Configure behavior in `config/sources.yaml` under `sources.website` (`enabled`, `discover_with_serper`, timeouts, chatbot keywords).
+- Set `SERPER_API_KEY` in `.env` (see `.env.example`).
+
 ## API Endpoints
 
 These endpoints trigger the same Week 1 ingestion pipeline as the CLI.

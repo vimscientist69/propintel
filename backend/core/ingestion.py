@@ -9,6 +9,7 @@ from typing import Any
 from backend.core.deduplicator import deduplicate
 from backend.core.normalizer import normalize_lead
 from backend.core.parser import CANONICAL_FIELDS, load_input
+from backend.services.enrichment import enrich_lead
 
 
 def _load_sources_config(config_path: str | Path) -> dict[str, Any]:
@@ -51,6 +52,16 @@ def ingest_to_structures_with_sources_config(
 
     normalized_leads = [normalize_lead(lead) for lead in leads]
     deduped_leads = deduplicate(normalized_leads)
+    website_cfg = (sources_cfg.get("website") or {}) if isinstance(sources_cfg, dict) else {}
+
+    enriched_leads: list[dict[str, Any]] = []
+    for lead in deduped_leads:
+        try:
+            enriched_leads.append(enrich_lead(lead, website_cfg))
+        except Exception as exc:  # noqa: BLE001
+            fallback = dict(lead)
+            fallback["enrichment_error"] = str(exc)
+            enriched_leads.append(fallback)
 
     summary = {
         "started_at": datetime.now().isoformat(),
@@ -63,10 +74,11 @@ def ingest_to_structures_with_sources_config(
             "mapped_valid_rows": len(leads),
             "rejected_rows": len(rejected),
             "deduped_rows": len(deduped_leads),
+            "enriched_rows": len(enriched_leads),
         },
     }
 
-    return deduped_leads, rejected, summary
+    return enriched_leads, rejected, summary
 
 
 def ingest_to_structures(

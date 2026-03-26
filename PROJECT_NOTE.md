@@ -305,8 +305,8 @@ The final project must include:
 
 ## **Week 1**
 
-- [ ] input system (CSV + schema handling)
-- [ ] basic website enrichment
+- [x] input system (CSV + schema handling)
+- [x] basic website enrichment
 
 ## **Week 2**
 

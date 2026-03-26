@@ -1,4 +1,144 @@
+from __future__ import annotations
+
+import re
+from typing import Any
+from urllib.parse import urlparse
+
+EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+PHONE_RE = re.compile(r"\+?\d[\d\-\s()]{6,}\d")
+
+
+def _normalize_url(url: str) -> str | None:
+    raw = (url or "").strip()
+    if not raw:
+        return None
+    if not raw.startswith(("http://", "https://")):
+        raw = f"https://{raw}"
+    return raw
+
+
+def fetch_website_html(
+    url: str,
+    *,
+    timeout_seconds: int = 8,
+    user_agent: str = "PropIntelBot/0.1",
+) -> dict[str, Any]:
+    import requests
+
+    normalized = _normalize_url(url)
+    if not normalized:
+        return {"ok": False, "url": None, "status_code": None, "html": "", "error": "empty_url"}
+
+    try:
+        response = requests.get(
+            normalized,
+            timeout=timeout_seconds,
+            headers={"User-Agent": user_agent},
+        )
+        return {
+            "ok": response.ok,
+            "url": normalized,
+            "status_code": response.status_code,
+            "html": response.text if response.ok else "",
+            "error": None if response.ok else f"http_{response.status_code}",
+        }
+    except requests.RequestException as exc:
+        return {
+            "ok": False,
+            "url": normalized,
+            "status_code": None,
+            "html": "",
+            "error": str(exc),
+        }
+
+
 def extract_contacts_from_html(html: str) -> dict[str, list[str]]:
-    """Placeholder contact extraction implementation."""
-    _ = html
-    return {"emails": [], "phones": []}
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html or "", "html.parser")
+    text = soup.get_text(" ", strip=True)
+
+    emails = set(EMAIL_RE.findall(text))
+    phones = set(PHONE_RE.findall(text))
+
+    # Add explicit mailto/tel links when present.
+    for tag in soup.select("a[href]"):
+        href = (tag.get("href") or "").strip()
+        if href.startswith("mailto:"):
+            email = href.replace("mailto:", "", 1).split("?")[0].strip()
+            if email:
+                emails.add(email)
+        elif href.startswith("tel:"):
+            phone = href.replace("tel:", "", 1).strip()
+            if phone:
+                phones.add(phone)
+
+    return {
+        "emails": sorted(emails),
+        "phones": sorted(phones),
+    }
+
+
+def detect_chatbot_signal(html: str, chatbot_keywords: list[str] | None = None) -> bool:
+    keywords = chatbot_keywords or []
+    haystack = (html or "").lower()
+    return any(keyword.lower() in haystack for keyword in keywords)
+
+
+def _is_plausible_company_domain(company_name: str, candidate_url: str) -> bool:
+    parsed = urlparse(candidate_url)
+    host = parsed.netloc.lower()
+    if not host:
+        return False
+
+    blocked = ("facebook.com", "instagram.com", "linkedin.com", "x.com", "twitter.com")
+    if any(blocked_host in host for blocked_host in blocked):
+        return False
+
+    # Basic token overlap with company name.
+    tokens = [t for t in re.split(r"[^a-z0-9]+", company_name.lower()) if len(t) > 2]
+    if not tokens:
+        return True
+    return any(token in host for token in tokens)
+
+
+def discover_company_website(
+    *,
+    company_name: str,
+    location: str | None,
+    serper_api_key: str | None,
+    timeout_seconds: int = 6,
+) -> str | None:
+    import requests
+
+    if not company_name or not serper_api_key:
+        return None
+
+    query = f"{company_name} official website"
+    if location:
+        query = f"{query} {location}"
+
+    try:
+        response = requests.post(
+            "https://google.serper.dev/search",
+            headers={
+                "X-API-KEY": serper_api_key,
+                "Content-Type": "application/json",
+            },
+            json={"q": query, "num": 5},
+            timeout=timeout_seconds,
+        )
+        if not response.ok:
+            return None
+
+        payload = response.json()
+        for item in payload.get("organic", []) or []:
+            candidate = _normalize_url(str(item.get("link") or ""))
+            if candidate and _is_plausible_company_domain(company_name, candidate):
+                return candidate
+    except requests.RequestException:
+        return None
+    except ValueError:
+        return None
+
+    return None

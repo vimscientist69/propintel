@@ -1,5 +1,10 @@
 # 🧠 PropIntel — Real Estate Lead Intelligence Platform (MVP)
 
+- [x] leads_20260326_134940.json serper website html validation logic is incorrect, as first lead "Southern Cape Properties" has a website, but website is not found.
+- [ ] Test other sample inputs as well for basic website enrichment
+
+---
+
 Update project on portfolio, LinkedIn and Upwork
 
 ## 🎯 Goal

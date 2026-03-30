@@ -97,15 +97,34 @@ def _is_plausible_company_domain(company_name: str, candidate_url: str) -> bool:
 
     # Basic token overlap with company name.
     tokens = [t for t in re.split(r"[^a-z0-9]+", company_name.lower()) if len(t) > 2]
+    host_compact = re.sub(r"[^a-z0-9]", "", host)
     if not tokens:
         return True
-    return any(token in host for token in tokens)
+
+    # 1) Direct token overlap (existing behavior).
+    if any(token in host for token in tokens):
+        return True
+
+    # 2) Acronym/abbreviation overlap for short-brand domains.
+    # Example: "Southern Cape Properties" -> "scp" / "scprop" should match scprop.co.za.
+    initials = "".join(token[0] for token in tokens if token)
+    if len(initials) >= 2 and initials in host_compact:
+        return True
+
+    # 3) Real-estate shorthand where "properties/property" is often shortened to "prop".
+    has_property_word = any(token in ("property", "properties") for token in tokens)
+    non_property_tokens = [t for t in tokens if t not in ("property", "properties")]
+    if has_property_word and non_property_tokens:
+        shorthand = "".join(token[0] for token in non_property_tokens) + "prop"
+        if shorthand in host_compact:
+            return True
+
+    return False
 
 
 def discover_company_website(
     *,
     company_name: str,
-    location: str | None,
     serper_api_key: str | None,
     timeout_seconds: int = 6,
 ) -> str | None:
@@ -115,8 +134,6 @@ def discover_company_website(
         return None
 
     query = f"{company_name} official website"
-    if location:
-        query = f"{query} {location}"
 
     try:
         response = requests.post(

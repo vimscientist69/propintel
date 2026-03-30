@@ -36,6 +36,26 @@ def _normalize_phone(phone: str | None) -> str | None:
     return f"+{digits}" if phone.strip().startswith("+") else digits
 
 
+def _fetch_with_retries(
+    website: str,
+    *,
+    timeout_seconds: int,
+    user_agent: str,
+    max_retries: int,
+) -> dict[str, Any]:
+    attempts = max(0, max_retries) + 1
+    last_result: dict[str, Any] = {"ok": False, "html": "", "error": "unknown"}
+    for _ in range(attempts):
+        last_result = fetch_website_html(
+            website,
+            timeout_seconds=timeout_seconds,
+            user_agent=user_agent,
+        )
+        if last_result.get("ok"):
+            return last_result
+    return last_result
+
+
 def enrich_lead(
     lead: dict[str, Any],
     website_config: dict[str, Any] | None = None,
@@ -51,6 +71,7 @@ def enrich_lead(
 
     timeout_seconds = int(cfg.get("request_timeout_seconds", 8))
     serper_timeout_seconds = int(cfg.get("serper_timeout_seconds", 6))
+    max_retries = int(cfg.get("max_retries", 2))
     user_agent = str(cfg.get("user_agent", "PropIntelBot/0.1"))
     chatbot_keywords = cfg.get("chatbot_keywords") or []
 
@@ -60,7 +81,6 @@ def enrich_lead(
         location = str(enriched.get("location") or "").strip() or None
         discovered = discover_company_website(
             company_name=company_name,
-            location=location,
             serper_api_key=os.getenv("SERPER_API_KEY"),
             timeout_seconds=serper_timeout_seconds,
         )
@@ -76,11 +96,42 @@ def enrich_lead(
         )
         return enriched
 
-    fetch_result = fetch_website_html(
+    fetch_result = _fetch_with_retries(
         website,
         timeout_seconds=timeout_seconds,
         user_agent=user_agent,
+        max_retries=max_retries,
     )
+    if not fetch_result.get("ok"):
+        if cfg.get("discover_with_serper", True):
+            company_name = str(enriched.get("company_name") or "").strip()
+            location = str(enriched.get("location") or "").strip() or None
+            discovered = discover_company_website(
+                company_name=company_name,
+                serper_api_key=os.getenv("SERPER_API_KEY"),
+                timeout_seconds=serper_timeout_seconds,
+            )
+            if discovered and discovered != website:
+                enriched["website"] = discovered
+                website = discovered
+                fetch_result = _fetch_with_retries(
+                    website,
+                    timeout_seconds=timeout_seconds,
+                    user_agent=user_agent,
+                    max_retries=max_retries,
+                )
+
+        # If retries failed and discovery is disabled or unsuccessful, null website.
+        if not fetch_result.get("ok"):
+            if not cfg.get("discover_with_serper", True) or not enriched.get("website"):
+                enriched["website"] = None
+            enriched["contact_quality"] = verify_contact_quality(
+                enriched.get("email"),
+                enriched.get("phone"),
+            )
+            enriched["enrichment_error"] = fetch_result.get("error")
+            return enriched
+
     if not fetch_result.get("ok"):
         enriched["contact_quality"] = verify_contact_quality(
             enriched.get("email"),

@@ -98,10 +98,12 @@ class TestGoogleMapsEnrichment(unittest.TestCase):
 
     def test_missing_api_key_is_non_fatal(self) -> None:
         lead = {"company_name": "Southern Cape Properties", "source": "input"}
-        with patch.dict(os.environ, {}, clear=True):
-            enriched = enrich_lead_from_google_maps(lead, self.cfg)
-        self.assertEqual(enriched.get("google_maps_error"), "missing_api_key")
 
+        with patch("backend.services.google_maps._load_env", return_value=None), \
+            patch("backend.services.google_maps.os.getenv", return_value=None):
+            enriched = enrich_lead_from_google_maps(lead, self.cfg)
+
+        self.assertEqual(enriched.get("google_maps_error"), "missing_api_key")
 
 if __name__ == "__main__":
     unittest.main()

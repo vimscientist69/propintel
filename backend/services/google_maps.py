@@ -125,29 +125,82 @@ def search_places(
     region: str | None = None,
     language: str | None = None,
 ) -> list[dict[str, Any]]:
+    import requests
+
     query = _normalize_str(company_name)
     if location:
         query = f"{query} {_normalize_str(location)}"
 
-    params: dict[str, Any] = {
-        "query": query,
-        "key": google_maps_api_key,
+    body: dict[str, Any] = {
+        "textQuery": query,
+        "pageSize": 5,
     }
     if region:
-        params["region"] = region
+        body["regionCode"] = region
     if language:
-        params["language"] = language
+        body["languageCode"] = language
 
-    payload = _request_json_with_retries(
-        method="GET",
-        url="https://maps.googleapis.com/maps/api/place/textsearch/json",
-        params=params,
-        timeout_seconds=timeout_seconds,
-        max_retries=max_retries,
-    )
+    attempts = max(0, int(max_retries)) + 1
+    delay_seconds = 0.5
+    payload: dict[str, Any] | None = None
+
+    for attempt in range(attempts):
+        try:
+            response = requests.post(
+                "https://places.googleapis.com/v1/places:searchText",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": google_maps_api_key,
+                    "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.name",
+                },
+                json=body,
+                timeout=timeout_seconds,
+            )
+            if response.status_code in (429, 500, 502, 503, 504):
+                if attempt < attempts - 1:
+                    time.sleep(delay_seconds)
+                    delay_seconds *= 2
+                    continue
+                return []
+            if not response.ok:
+                return []
+            payload = response.json()
+            if not isinstance(payload, dict):
+                return []
+            break
+        except Exception:
+            if attempt < attempts - 1:
+                time.sleep(delay_seconds)
+                delay_seconds *= 2
+                continue
+            return []
+
     if not payload:
         return []
-    return payload.get("results") or []
+
+    places = payload.get("places") or []
+    normalized: list[dict[str, Any]] = []
+    for place in places:
+        if not isinstance(place, dict):
+            continue
+        resource_name = _normalize_str(place.get("name"))
+        place_id = _normalize_str(place.get("id"))
+        if not place_id and resource_name.startswith("places/"):
+            place_id = resource_name.split("/", 1)[1]
+        display_name = (
+            _normalize_str((place.get("displayName") or {}).get("text"))
+            if isinstance(place.get("displayName"), dict)
+            else _normalize_str(place.get("displayName"))
+        )
+        normalized.append(
+            {
+                "name": display_name,
+                "formatted_address": _normalize_str(place.get("formattedAddress")),
+                "place_id": place_id,
+            }
+        )
+
+    return normalized
 
 
 def get_place_details(
@@ -158,25 +211,52 @@ def get_place_details(
     max_retries: int,
     language: str | None = None,
 ) -> dict[str, Any] | None:
-    params: dict[str, Any] = {
-        "place_id": place_id,
-        "fields": "name,formatted_address,website,formatted_phone_number,international_phone_number",
-        "key": google_maps_api_key,
-    }
-    if language:
-        params["language"] = language
+    import requests
 
-    payload = _request_json_with_retries(
-        method="GET",
-        url="https://maps.googleapis.com/maps/api/place/details/json",
-        params=params,
-        timeout_seconds=timeout_seconds,
-        max_retries=max_retries,
-    )
-    if not payload:
-        return None
-    result = payload.get("result")
-    return result if isinstance(result, dict) else None
+    params: dict[str, Any] = {}
+    if language:
+        params["languageCode"] = language
+
+    attempts = max(0, int(max_retries)) + 1
+    delay_seconds = 0.5
+
+    for attempt in range(attempts):
+        try:
+            response = requests.get(
+                f"https://places.googleapis.com/v1/places/{place_id}",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": google_maps_api_key,
+                    "X-Goog-FieldMask": "id,displayName,formattedAddress,websiteUri,nationalPhoneNumber,internationalPhoneNumber",
+                },
+                params=params,
+                timeout=timeout_seconds,
+            )
+            if response.status_code in (429, 500, 502, 503, 504):
+                if attempt < attempts - 1:
+                    time.sleep(delay_seconds)
+                    delay_seconds *= 2
+                    continue
+                return None
+            if not response.ok:
+                return None
+            payload = response.json()
+            if not isinstance(payload, dict):
+                return None
+            return {
+                "website": _normalize_str(payload.get("websiteUri")),
+                "formatted_phone_number": _normalize_str(payload.get("nationalPhoneNumber")),
+                "international_phone_number": _normalize_str(payload.get("internationalPhoneNumber")),
+                "formatted_address": _normalize_str(payload.get("formattedAddress")),
+            }
+        except Exception:
+            if attempt < attempts - 1:
+                time.sleep(delay_seconds)
+                delay_seconds *= 2
+                continue
+            return None
+
+    return None
 
 
 def match_best_candidate(
@@ -229,10 +309,10 @@ def enrich_lead_from_google_maps(
 
     _load_env()
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+    print("API KEY: ", api_key)
     if not api_key:
         enriched["google_maps_error"] = "missing_api_key"
         return enriched
-
     timeout_seconds = int(cfg.get("timeout_seconds", 8))
     max_retries = int(cfg.get("max_retries", 2))
     min_name_match_score = float(cfg.get("min_name_match_score", 0.5))

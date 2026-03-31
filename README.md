@@ -58,6 +58,20 @@ Inside that folder, filenames include the same timestamp:
 - Configure behavior in `config/sources.yaml` under `sources.website` (`enabled`, `discover_with_serper`, timeouts, chatbot keywords).
 - Set `SERPER_API_KEY` in `.env` (see `.env.example`).
 
+### Google Maps Enrichment (Week 2)
+- Google Maps enrichment runs after website enrichment (best effort, non-fatal).
+- Configure behavior in `config/sources.yaml` under `sources.google_maps`:
+  - `enabled`, `timeout_seconds`, `max_retries`, `min_name_match_score`, `region`, `language`
+- Set `GOOGLE_MAPS_API_KEY` in `.env` (see `.env.example`).
+- Candidate matching rules:
+  - company-name match is required
+  - location matching is optional and only applied when usable location is provided
+- Location behavior:
+  - if location is missing, matching runs name-only
+  - if location is invalid/unstructured, API normalization is attempted
+  - if normalization fails, matching still runs name-only
+  - when a better canonical location is resolved from Google, it is written back to `location`
+
 ## API Endpoints
 
 These endpoints trigger the same Week 1 ingestion pipeline as the CLI.

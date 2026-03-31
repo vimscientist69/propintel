@@ -10,6 +10,7 @@ from backend.core.deduplicator import deduplicate
 from backend.core.normalizer import normalize_lead
 from backend.core.parser import CANONICAL_FIELDS, load_input
 from backend.services.enrichment import enrich_lead
+from backend.services.google_maps import enrich_lead_from_google_maps
 
 
 def _load_sources_config(config_path: str | Path) -> dict[str, Any]:
@@ -53,6 +54,7 @@ def ingest_to_structures_with_sources_config(
     normalized_leads = [normalize_lead(lead) for lead in leads]
     deduped_leads = deduplicate(normalized_leads)
     website_cfg = (sources_cfg.get("website") or {}) if isinstance(sources_cfg, dict) else {}
+    google_maps_cfg = (sources_cfg.get("google_maps") or {}) if isinstance(sources_cfg, dict) else {}
 
     enriched_leads: list[dict[str, Any]] = []
     for lead in deduped_leads:
@@ -62,6 +64,36 @@ def ingest_to_structures_with_sources_config(
             fallback = dict(lead)
             fallback["enrichment_error"] = str(exc)
             enriched_leads.append(fallback)
+
+    google_enriched_leads: list[dict[str, Any]] = enriched_leads
+    google_attempted = 0
+    google_failed = 0
+    google_location_normalized = 0
+    google_matched = 0
+    google_enabled = bool(google_maps_cfg.get("enabled", False))
+
+    if google_enabled:
+        google_enriched_leads = []
+        for lead in enriched_leads:
+            google_attempted += 1
+            try:
+                updated = enrich_lead_from_google_maps(lead, google_maps_cfg)
+            except Exception as exc:  # noqa: BLE001
+                updated = dict(lead)
+                updated["google_maps_error"] = str(exc)
+
+            if updated.get("google_maps_error"):
+                google_failed += 1
+            if updated.get("source") and "google_maps" in str(updated.get("source")):
+                google_matched += 1
+            if (
+                str(updated.get("location") or "").strip()
+                and str(updated.get("location") or "").strip()
+                != str(lead.get("location") or "").strip()
+            ):
+                google_location_normalized += 1
+
+            google_enriched_leads.append(updated)
 
     summary = {
         "started_at": datetime.now().isoformat(),
@@ -75,10 +107,14 @@ def ingest_to_structures_with_sources_config(
             "rejected_rows": len(rejected),
             "deduped_rows": len(deduped_leads),
             "enriched_rows": len(enriched_leads),
+            "google_maps_attempted": google_attempted,
+            "google_maps_matched": google_matched,
+            "google_maps_failed": google_failed,
+            "google_maps_location_normalized": google_location_normalized,
         },
     }
 
-    return enriched_leads, rejected, summary
+    return google_enriched_leads, rejected, summary
 
 
 def ingest_to_structures(

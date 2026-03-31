@@ -83,3 +83,8 @@ sources:
 
   google_maps:
     enabled: true
+    timeout_seconds: 8
+    max_retries: 2
+    min_name_match_score: 0.5
+    region: "za"
+    language: "en"

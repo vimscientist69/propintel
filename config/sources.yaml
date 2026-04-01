@@ -12,6 +12,7 @@ sources:
         - company_name
         - company
         - agency
+        - agency_name
         - business
         - business_name
         - businessname
@@ -31,6 +32,7 @@ sources:
         - domain
       email:
         - email
+        - agent_email
         - emails
         - contact_email
         - contactemail

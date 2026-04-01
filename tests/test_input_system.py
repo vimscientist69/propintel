@@ -3,6 +3,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from backend.core.deduplicator import deduplicate
 from backend.core.ingestion import run_ingestion_with_sources_config
@@ -137,6 +138,51 @@ class TestInputSystem(unittest.TestCase):
             self.assertIn("enrichment_history", leads[0])
             self.assertIn("candidates", leads[0]["enrichment_history"])
             self.assertIn("decisions", leads[0]["enrichment_history"])
+
+    def test_google_maps_phone_candidate_is_tracked_and_wins(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            csv_path = tmp_path / "leads.csv"
+            with csv_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["Company", "phone"])
+                writer.writeheader()
+                writer.writerow({"Company": "Acme Realty", "phone": "011 111 1111"})
+
+            sources_cfg = {
+                "input": {
+                    "required_any": ["company_name"],
+                    "schema_aliases": {
+                        "company_name": ["company"],
+                        "phone": ["phone"],
+                    },
+                    "defaults": {"source": "input"},
+                },
+                "google_maps": {"enabled": True},
+            }
+            summary_path = tmp_path / "summary.json"
+
+            with patch(
+                "backend.core.ingestion.enrich_lead",
+                side_effect=lambda lead, cfg: dict(lead),
+            ), patch(
+                "backend.core.ingestion.enrich_lead_from_google_maps",
+                side_effect=lambda lead, cfg: {
+                    **lead,
+                    "source": "input,google_maps",
+                    "_google_maps_values": {"phone": "022 222 2222"},
+                },
+            ):
+                summary = run_ingestion_with_sources_config(
+                    input_path=csv_path,
+                    input_format="csv",
+                    sources_cfg=sources_cfg,
+                    output_summary_path=summary_path,
+                )
+
+            leads = json.loads(Path(summary["output"]["leads_json"]).read_text(encoding="utf-8"))
+            self.assertEqual(leads[0]["phone"], "022 222 2222")
+            phone_candidates = leads[0]["enrichment_history"]["candidates"]["phone"]
+            self.assertTrue(any(c.get("source") == "google_maps" for c in phone_candidates))
 
 
 if __name__ == "__main__":

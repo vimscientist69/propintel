@@ -113,6 +113,7 @@ def ingest_to_structures_with_sources_config(
         current_stage = (
             google_enriched_leads[idx] if idx < len(google_enriched_leads) else dict(website_stage)
         )
+        google_stage_values = dict(current_stage.get("_google_maps_values") or {})
 
         candidate_map: dict[str, list[dict[str, Any]]] = {k: [] for k in TRACKED_FIELDS}
         for field in TRACKED_FIELDS:
@@ -145,8 +146,12 @@ def ingest_to_structures_with_sources_config(
                     )
                 )
 
-            g_value = current_stage.get(field)
-            if g_value is not None and g_value != w_value:
+            g_value = google_stage_values.get(field)
+            if g_value is None:
+                g_value = current_stage.get(field)
+                if g_value == w_value:
+                    g_value = None
+            if g_value is not None:
                 g_validated = not bool(current_stage.get("google_maps_error"))
                 if not g_validated:
                     invalid_candidates += 1
@@ -156,7 +161,8 @@ def ingest_to_structures_with_sources_config(
                         source="google_maps",
                         value=g_value,
                         validated=g_validated,
-                        confidence=0.75 if g_validated else 0.2,
+                        # Phone strategy: prefer validated Google Maps over input.
+                        confidence=0.9 if (g_validated and field == "phone") else (0.75 if g_validated else 0.2),
                         validation_reason="google_maps_ok" if g_validated else "google_maps_error",
                     )
                 )
@@ -177,6 +183,7 @@ def ingest_to_structures_with_sources_config(
         if current_stage.get("google_maps_error"):
             history["stage_errors"]["google_maps"] = current_stage.get("google_maps_error")
         resolved["enrichment_history"] = history
+        resolved.pop("_google_maps_values", None)
         resolved_leads.append(resolved)
 
     summary = {

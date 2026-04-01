@@ -290,8 +290,9 @@ def get_place_details(
                 )
                 return None
             payload = response.json()
+            logger.info(f"Google Maps Place Details payload: {payload} for place_id={place_id}")
             if not isinstance(payload, dict):
-                logger.warning("Google Maps Place Details invalid JSON for place_id={}", place_id)
+                logger.info(f"Google Maps Place Details invalid JSON for place_id={place_id}")
                 return None
             result = {
                 "website": _normalize_str(payload.get("websiteUri")),
@@ -464,6 +465,11 @@ def enrich_lead_from_google_maps(
         or None
     )
     formatted_address = _normalize_str(details.get("formatted_address")) or None
+    enriched["_google_maps_values"] = {
+        "website": website,
+        "phone": phone,
+        "location": formatted_address or normalized_location,
+    }
 
     if not enriched.get("website") and website:
         enriched["website"] = website

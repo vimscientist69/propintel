@@ -72,6 +72,17 @@ Inside that folder, filenames include the same timestamp:
   - if normalization fails, matching still runs name-only
   - when a better canonical location is resolved from Google, it is written back to `location`
 
+### Enrichment History and Conflict Resolution
+- Final canonical fields remain: `website`, `email`, `phone`, `location`.
+- Each lead now includes `enrichment_history` with:
+  - `candidates` per field from `input`, `website_enrichment`, and `google_maps`
+  - `decisions` per field with chosen source/value and tie-break metadata
+  - `stage_errors` for non-fatal enrichment failures
+- Conflict policy:
+  - prefer highest-confidence validated candidate
+  - on website ties, prefer verified Google Maps candidate
+  - otherwise keep current canonical value on tie
+
 ## API Endpoints
 
 These endpoints trigger the same Week 1 ingestion pipeline as the CLI.

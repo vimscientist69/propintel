@@ -7,10 +7,19 @@ from pathlib import Path
 from typing import Any
 
 from backend.core.deduplicator import deduplicate
+from backend.core.logging_utils import get_logger
 from backend.core.normalizer import normalize_lead
 from backend.core.parser import CANONICAL_FIELDS, load_input
+from backend.services.conflict_resolver import (
+    TRACKED_FIELDS,
+    make_candidate,
+    resolve_all_fields,
+)
 from backend.services.enrichment import enrich_lead
 from backend.services.google_maps import enrich_lead_from_google_maps
+
+
+logger = get_logger(__name__)
 
 
 def _load_sources_config(config_path: str | Path) -> dict[str, Any]:
@@ -70,6 +79,9 @@ def ingest_to_structures_with_sources_config(
     google_failed = 0
     google_location_normalized = 0
     google_matched = 0
+    conflicts_resolved = 0
+    replacements_performed = 0
+    invalid_candidates = 0
     google_enabled = bool(google_maps_cfg.get("enabled", False))
 
     if google_enabled:
@@ -95,6 +107,78 @@ def ingest_to_structures_with_sources_config(
 
             google_enriched_leads.append(updated)
 
+    resolved_leads: list[dict[str, Any]] = []
+    for idx, base_lead in enumerate(deduped_leads):
+        website_stage = enriched_leads[idx] if idx < len(enriched_leads) else dict(base_lead)
+        current_stage = (
+            google_enriched_leads[idx] if idx < len(google_enriched_leads) else dict(website_stage)
+        )
+
+        candidate_map: dict[str, list[dict[str, Any]]] = {k: [] for k in TRACKED_FIELDS}
+        for field in TRACKED_FIELDS:
+            base_value = base_lead.get(field)
+            if base_value is not None:
+                candidate_map[field].append(
+                    make_candidate(
+                        field=field,
+                        source="input",
+                        value=base_value,
+                        validated=True,
+                        confidence=0.35,
+                        validation_reason="from_input",
+                    )
+                )
+
+            w_value = website_stage.get(field)
+            if w_value is not None and w_value != base_value:
+                w_validated = not bool(website_stage.get("enrichment_error"))
+                if not w_validated:
+                    invalid_candidates += 1
+                candidate_map[field].append(
+                    make_candidate(
+                        field=field,
+                        source="website_enrichment",
+                        value=w_value,
+                        validated=w_validated,
+                        confidence=0.75 if w_validated else 0.2,
+                        validation_reason="website_fetch_ok" if w_validated else "website_fetch_failed",
+                    )
+                )
+
+            g_value = current_stage.get(field)
+            if g_value is not None and g_value != w_value:
+                g_validated = not bool(current_stage.get("google_maps_error"))
+                if not g_validated:
+                    invalid_candidates += 1
+                candidate_map[field].append(
+                    make_candidate(
+                        field=field,
+                        source="google_maps",
+                        value=g_value,
+                        validated=g_validated,
+                        confidence=0.75 if g_validated else 0.2,
+                        validation_reason="google_maps_ok" if g_validated else "google_maps_error",
+                    )
+                )
+
+        resolved, decisions = resolve_all_fields(candidate_map, current_stage)
+        decision_list = list(decisions.values())
+        conflicts_resolved += sum(1 for d in decision_list if d.get("tie_break_applied"))
+        replacements_performed += sum(
+            1 for f in TRACKED_FIELDS if resolved.get(f) != base_lead.get(f)
+        )
+
+        history = dict(current_stage.get("enrichment_history") or {})
+        history["candidates"] = candidate_map
+        history["decisions"] = decisions
+        history.setdefault("stage_errors", {})
+        if current_stage.get("enrichment_error"):
+            history["stage_errors"]["website_enrichment"] = current_stage.get("enrichment_error")
+        if current_stage.get("google_maps_error"):
+            history["stage_errors"]["google_maps"] = current_stage.get("google_maps_error")
+        resolved["enrichment_history"] = history
+        resolved_leads.append(resolved)
+
     summary = {
         "started_at": datetime.now().isoformat(),
         "input": {
@@ -111,10 +195,26 @@ def ingest_to_structures_with_sources_config(
             "google_maps_matched": google_matched,
             "google_maps_failed": google_failed,
             "google_maps_location_normalized": google_location_normalized,
+            "conflicts_resolved": conflicts_resolved,
+            "replacements_performed": replacements_performed,
+            "invalid_candidates": invalid_candidates,
         },
     }
 
-    return google_enriched_leads, rejected, summary
+    logger.info(
+        "Ingestion summary: input_rows={} valid_rows={} rejected={} deduped={} enriched={} gmaps_attempted={} gmaps_matched={} gmaps_failed={} gmaps_location_normalized={}",
+        summary["counts"]["input_rows"],
+        summary["counts"]["mapped_valid_rows"],
+        summary["counts"]["rejected_rows"],
+        summary["counts"]["deduped_rows"],
+        summary["counts"]["enriched_rows"],
+        summary["counts"]["google_maps_attempted"],
+        summary["counts"]["google_maps_matched"],
+        summary["counts"]["google_maps_failed"],
+        summary["counts"]["google_maps_location_normalized"],
+    )
+
+    return resolved_leads, rejected, summary
 
 
 def ingest_to_structures(

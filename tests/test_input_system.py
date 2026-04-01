@@ -134,6 +134,9 @@ class TestInputSystem(unittest.TestCase):
             leads = json.loads(Path(summary["output"]["leads_json"]).read_text(encoding="utf-8"))
             self.assertEqual(len(leads), 1)
             self.assertEqual(leads[0]["company_name"], "Acme Realty")
+            self.assertIn("enrichment_history", leads[0])
+            self.assertIn("candidates", leads[0]["enrichment_history"])
+            self.assertIn("decisions", leads[0]["enrichment_history"])
 
 
 if __name__ == "__main__":

@@ -5,6 +5,11 @@ import time
 from difflib import SequenceMatcher
 from typing import Any
 
+from backend.core.logging_utils import get_logger
+
+
+logger = get_logger(__name__)
+
 
 def _load_env() -> None:
     try:
@@ -85,6 +90,7 @@ def normalize_location(
     language: str | None = None,
 ) -> str | None:
     if not _is_usable_location(raw_location):
+        logger.debug("Google Maps normalize_location skipped: unusable input")
         return None
 
     params: dict[str, Any] = {
@@ -104,14 +110,21 @@ def normalize_location(
         max_retries=max_retries,
     )
     if not payload:
+        logger.warning("Google Maps geocoding returned no payload for location='{}'", raw_location)
         return None
 
     results = payload.get("results") or []
     if not results:
+        logger.info("Google Maps geocoding returned no results for location='{}'", raw_location)
         return None
 
     first = results[0]
     formatted = _normalize_str(first.get("formatted_address"))
+    logger.debug(
+        "Google Maps normalized location '{}' -> '{}'",
+        raw_location,
+        formatted or "<none>",
+    )
     return formatted or None
 
 
@@ -157,18 +170,36 @@ def search_places(
                 timeout=timeout_seconds,
             )
             if response.status_code in (429, 500, 502, 503, 504):
+                logger.warning(
+                    "Google Maps Text Search retryable status={} attempt={}/{} query='{}'",
+                    response.status_code,
+                    attempt + 1,
+                    attempts,
+                    query,
+                )
                 if attempt < attempts - 1:
                     time.sleep(delay_seconds)
                     delay_seconds *= 2
                     continue
                 return []
             if not response.ok:
+                logger.warning(
+                    "Google Maps Text Search failed status={} query='{}'",
+                    response.status_code,
+                    query,
+                )
                 return []
             payload = response.json()
             if not isinstance(payload, dict):
                 return []
             break
         except Exception:
+            logger.exception(
+                "Google Maps Text Search exception attempt={}/{} query='{}'",
+                attempt + 1,
+                attempts,
+                query,
+            )
             if attempt < attempts - 1:
                 time.sleep(delay_seconds)
                 delay_seconds *= 2
@@ -176,6 +207,7 @@ def search_places(
             return []
 
     if not payload:
+        logger.info("Google Maps Text Search returned empty payload query='{}'", query)
         return []
 
     places = payload.get("places") or []
@@ -200,6 +232,11 @@ def search_places(
             }
         )
 
+    logger.info(
+        "Google Maps Text Search candidates={} query='{}'",
+        len(normalized),
+        query,
+    )
     return normalized
 
 
@@ -233,23 +270,50 @@ def get_place_details(
                 timeout=timeout_seconds,
             )
             if response.status_code in (429, 500, 502, 503, 504):
+                logger.warning(
+                    "Google Maps Place Details retryable status={} place_id={} attempt={}/{}",
+                    response.status_code,
+                    place_id,
+                    attempt + 1,
+                    attempts,
+                )
                 if attempt < attempts - 1:
                     time.sleep(delay_seconds)
                     delay_seconds *= 2
                     continue
                 return None
             if not response.ok:
+                logger.warning(
+                    "Google Maps Place Details failed status={} place_id={}",
+                    response.status_code,
+                    place_id,
+                )
                 return None
             payload = response.json()
             if not isinstance(payload, dict):
+                logger.warning("Google Maps Place Details invalid JSON for place_id={}", place_id)
                 return None
-            return {
+            result = {
                 "website": _normalize_str(payload.get("websiteUri")),
                 "formatted_phone_number": _normalize_str(payload.get("nationalPhoneNumber")),
                 "international_phone_number": _normalize_str(payload.get("internationalPhoneNumber")),
                 "formatted_address": _normalize_str(payload.get("formattedAddress")),
             }
+            logger.debug(
+                "Google Maps Place Details success place_id={} website={} phone={} address={}",
+                place_id,
+                bool(result["website"]),
+                bool(result["formatted_phone_number"] or result["international_phone_number"]),
+                bool(result["formatted_address"]),
+            )
+            return result
         except Exception:
+            logger.exception(
+                "Google Maps Place Details exception place_id={} attempt={}/{}",
+                place_id,
+                attempt + 1,
+                attempts,
+            )
             if attempt < attempts - 1:
                 time.sleep(delay_seconds)
                 delay_seconds *= 2
@@ -305,13 +369,14 @@ def enrich_lead_from_google_maps(
     enriched = dict(lead)
     cfg = google_maps_config or {}
     if not cfg.get("enabled", False):
+        logger.debug("Google Maps enrichment disabled")
         return enriched
 
     _load_env()
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
-    print("API KEY: ", api_key)
     if not api_key:
         enriched["google_maps_error"] = "missing_api_key"
+        logger.warning("Google Maps enrichment skipped: missing GOOGLE_MAPS_API_KEY")
         return enriched
     timeout_seconds = int(cfg.get("timeout_seconds", 8))
     max_retries = int(cfg.get("max_retries", 2))
@@ -321,9 +386,16 @@ def enrich_lead_from_google_maps(
 
     company_name = _normalize_str(enriched.get("company_name"))
     if not company_name:
+        logger.debug("Google Maps enrichment skipped: missing company_name")
         return enriched
 
     original_location = _normalize_str(enriched.get("location")) or None
+    logger.info(
+        "Google Maps enrichment start company='{}' has_location={} has_website={}",
+        company_name,
+        bool(original_location),
+        bool(_normalize_str(enriched.get("website"))),
+    )
     normalized_location = normalize_location(
         original_location,
         google_maps_api_key=api_key,
@@ -344,6 +416,11 @@ def enrich_lead_from_google_maps(
         language=language,
     )
     if not candidates and normalized_location:
+        logger.info(
+            "Google Maps fallback to name-only search company='{}' normalized_location='{}'",
+            company_name,
+            normalized_location,
+        )
         candidates = search_places(
             company_name,
             location=None,
@@ -361,10 +438,12 @@ def enrich_lead_from_google_maps(
         normalized_location=normalized_location,
     )
     if not chosen:
+        logger.info("Google Maps no candidate matched company='{}'", company_name)
         return enriched
 
     place_id = _normalize_str(chosen.get("place_id"))
     if not place_id:
+        logger.warning("Google Maps candidate missing place_id company='{}'", company_name)
         return enriched
 
     details = get_place_details(
@@ -375,6 +454,7 @@ def enrich_lead_from_google_maps(
         language=language,
     )
     if not details:
+        logger.info("Google Maps no place details place_id={} company='{}'", place_id, company_name)
         return enriched
 
     website = _normalize_str(details.get("website")) or None
@@ -407,5 +487,12 @@ def enrich_lead_from_google_maps(
     else:
         enriched["source"] = "google_maps"
 
+    logger.info(
+        "Google Maps enrichment success company='{}' website_set={} phone_set={} location_updated={}",
+        company_name,
+        bool(enriched.get("website")),
+        bool(enriched.get("phone")),
+        _normalize_str(enriched.get("location")) != _normalize_str(original_location),
+    )
     return enriched
 

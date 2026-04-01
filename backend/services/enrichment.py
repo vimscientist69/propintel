@@ -105,7 +105,6 @@ def enrich_lead(
     if not fetch_result.get("ok"):
         if cfg.get("discover_with_serper", True):
             company_name = str(enriched.get("company_name") or "").strip()
-            location = str(enriched.get("location") or "").strip() or None
             discovered = discover_company_website(
                 company_name=company_name,
                 serper_api_key=os.getenv("SERPER_API_KEY"),

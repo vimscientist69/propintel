@@ -91,12 +91,22 @@ def resolve_field_candidates(
         "chosen_value": chosen_value,
         "tie_break_applied": tie_break_applied,
         "tie_break_reason": tie_break_reason,
+        "decision_reason": (
+            "highest_validated_confidence"
+            if not tie_break_applied
+            else f"tie_break:{tie_break_reason}"
+        ),
         "alternatives": [
             {
                 "source": c.get("source"),
                 "value": c.get("value"),
                 "confidence": float(c.get("confidence", 0.0)),
                 "validated": bool(c.get("validated")),
+                "losing_reason": (
+                    "not_selected_after_tie_break"
+                    if tie_break_applied
+                    else "lower_confidence_or_invalid"
+                ),
             }
             for c in candidates
             if c is not chosen

@@ -7,3 +7,4 @@ pyyaml
 python-multipart
 loguru
 python-dotenv
+phonenumbers

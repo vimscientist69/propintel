@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
-import re
 from typing import Any
 
+from backend.services.contact_parser import normalize_email_advanced, normalize_phone_advanced
 from backend.services.scraper import (
+    discover_contact_page_urls,
     detect_chatbot_signal,
     discover_company_website,
+    extract_contacts_from_jsonld,
     extract_contacts_from_html,
     fetch_website_html,
 )
@@ -25,15 +27,6 @@ def _load_env() -> None:
 
 def _pick_first(values: list[str]) -> str | None:
     return values[0] if values else None
-
-
-def _normalize_phone(phone: str | None) -> str | None:
-    if not phone:
-        return None
-    digits = re.sub(r"\D", "", phone)
-    if not digits:
-        return None
-    return f"+{digits}" if phone.strip().startswith("+") else digits
 
 
 def _fetch_with_retries(
@@ -140,14 +133,76 @@ def enrich_lead(
         return enriched
 
     html = str(fetch_result.get("html") or "")
-    contacts = extract_contacts_from_html(html)
-    scraped_email = _pick_first(contacts.get("emails", []))
-    scraped_phone = _normalize_phone(_pick_first(contacts.get("phones", [])))
+    page_htmls: list[tuple[str, str]] = [(website, html)]
+    extra_pages = discover_contact_page_urls(website, html)
+    multi_page_fetch_success = 0
+    for page_url in extra_pages:
+        page_result = fetch_website_html(
+            page_url,
+            timeout_seconds=timeout_seconds,
+            user_agent=user_agent,
+        )
+        if page_result.get("ok"):
+            multi_page_fetch_success += 1
+            page_htmls.append((page_url, str(page_result.get("html") or "")))
 
-    if not enriched.get("email") and scraped_email:
-        enriched["email"] = scraped_email
-    if not enriched.get("phone") and scraped_phone:
-        enriched["phone"] = scraped_phone
+    all_emails: list[str] = []
+    all_phones: list[str] = []
+    schema_contacts_used = 0
+    for _, page_html in page_htmls:
+        regular = extract_contacts_from_html(page_html)
+        schema = extract_contacts_from_jsonld(page_html)
+        if schema.get("emails") or schema.get("phones"):
+            schema_contacts_used += 1
+        all_emails.extend(schema.get("emails", []))
+        all_emails.extend(regular.get("emails", []))
+        all_phones.extend(schema.get("phones", []))
+        all_phones.extend(regular.get("phones", []))
+
+    email_disposable_rejected = 0
+    selected_email: str | None = None
+    selected_email_reason = "none"
+    selected_email_quality = "low"
+    for candidate_email in all_emails:
+        parsed = normalize_email_advanced(candidate_email)
+        if parsed.get("is_disposable"):
+            email_disposable_rejected += 1
+        if parsed.get("valid") and parsed.get("value"):
+            selected_email = str(parsed["value"])
+            selected_email_reason = str(parsed.get("reason") or "valid_email")
+            selected_email_quality = str(parsed.get("quality") or "medium")
+            break
+
+    selected_phone: str | None = None
+    selected_phone_reason = "none"
+    phone_valid_count = 0
+    for candidate_phone in all_phones:
+        parsed = normalize_phone_advanced(candidate_phone)
+        if parsed.get("valid") and parsed.get("value"):
+            phone_valid_count += 1
+            if selected_phone is None:
+                selected_phone = str(parsed["value"])
+                selected_phone_reason = str(parsed.get("reason") or "valid_phone")
+
+    if not enriched.get("email") and selected_email:
+        enriched["email"] = selected_email
+    if not enriched.get("phone") and selected_phone:
+        enriched["phone"] = selected_phone
+
+    enriched["_website_values"] = {
+        "email": selected_email,
+        "phone": selected_phone,
+    }
+    enriched["_website_contact_stats"] = {
+        "schema_contacts_used": schema_contacts_used,
+        "email_disposable_rejected": email_disposable_rejected,
+        "multi_page_fetch_success": multi_page_fetch_success,
+        "phone_valid_count": phone_valid_count,
+        "phone_total_candidates": len(all_phones),
+        "email_validation_reason": selected_email_reason,
+        "phone_validation_reason": selected_phone_reason,
+        "email_quality": selected_email_quality,
+    }
 
     enriched["has_chatbot"] = detect_chatbot_signal(html, chatbot_keywords)
     enriched["last_updated_signal"] = "detected" if "updated" in html.lower() else "unknown"

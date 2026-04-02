@@ -315,7 +315,7 @@ The final project must include:
 
 ## **Week 2**
 
-- [ ] Google Maps integration
+- [x] Google Maps integration
 - [ ] contact extraction + normalization
 
 ## **Week 3**

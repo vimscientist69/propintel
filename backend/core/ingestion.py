@@ -82,6 +82,11 @@ def ingest_to_structures_with_sources_config(
     conflicts_resolved = 0
     replacements_performed = 0
     invalid_candidates = 0
+    schema_contacts_used = 0
+    email_disposable_rejected = 0
+    multi_page_fetch_success = 0
+    phone_e164_valid = 0
+    phone_e164_total = 0
     google_enabled = bool(google_maps_cfg.get("enabled", False))
 
     if google_enabled:
@@ -113,7 +118,14 @@ def ingest_to_structures_with_sources_config(
         current_stage = (
             google_enriched_leads[idx] if idx < len(google_enriched_leads) else dict(website_stage)
         )
+        website_stage_values = dict(website_stage.get("_website_values") or {})
+        website_stats = dict(website_stage.get("_website_contact_stats") or {})
         google_stage_values = dict(current_stage.get("_google_maps_values") or {})
+        schema_contacts_used += int(website_stats.get("schema_contacts_used", 0))
+        email_disposable_rejected += int(website_stats.get("email_disposable_rejected", 0))
+        multi_page_fetch_success += int(website_stats.get("multi_page_fetch_success", 0))
+        phone_e164_valid += int(website_stats.get("phone_valid_count", 0))
+        phone_e164_total += int(website_stats.get("phone_total_candidates", 0))
 
         candidate_map: dict[str, list[dict[str, Any]]] = {k: [] for k in TRACKED_FIELDS}
         for field in TRACKED_FIELDS:
@@ -131,18 +143,21 @@ def ingest_to_structures_with_sources_config(
                 )
 
             w_value = website_stage.get(field)
+            if field in ("email", "phone"):
+                w_value = website_stage_values.get(field) if website_stage_values.get(field) is not None else w_value
             if w_value is not None and w_value != base_value:
                 w_validated = not bool(website_stage.get("enrichment_error"))
                 if not w_validated:
                     invalid_candidates += 1
+                w_reason = str(website_stats.get(f"{field}_validation_reason") or "website_fetch_ok")
                 candidate_map[field].append(
                     make_candidate(
                         field=field,
                         source="website_enrichment",
                         value=w_value,
                         validated=w_validated,
-                        confidence=0.75 if w_validated else 0.2,
-                        validation_reason="website_fetch_ok" if w_validated else "website_fetch_failed",
+                        confidence=0.82 if (w_validated and field == "email") else (0.75 if w_validated else 0.2),
+                        validation_reason=w_reason if w_validated else "website_fetch_failed",
                     )
                 )
 
@@ -178,11 +193,15 @@ def ingest_to_structures_with_sources_config(
         history["candidates"] = candidate_map
         history["decisions"] = decisions
         history.setdefault("stage_errors", {})
+        history.setdefault("diagnostics", {})
+        history["diagnostics"]["website"] = website_stats
         if current_stage.get("enrichment_error"):
             history["stage_errors"]["website_enrichment"] = current_stage.get("enrichment_error")
         if current_stage.get("google_maps_error"):
             history["stage_errors"]["google_maps"] = current_stage.get("google_maps_error")
         resolved["enrichment_history"] = history
+        resolved.pop("_website_values", None)
+        resolved.pop("_website_contact_stats", None)
         resolved.pop("_google_maps_values", None)
         resolved_leads.append(resolved)
 
@@ -205,6 +224,14 @@ def ingest_to_structures_with_sources_config(
             "conflicts_resolved": conflicts_resolved,
             "replacements_performed": replacements_performed,
             "invalid_candidates": invalid_candidates,
+            "schema_contacts_used": schema_contacts_used,
+            "email_disposable_rejected": email_disposable_rejected,
+            "multi_page_fetch_success": multi_page_fetch_success,
+            "phone_e164_valid_rate": (
+                round(float(phone_e164_valid) / float(phone_e164_total), 4)
+                if phone_e164_total
+                else 0.0
+            ),
         },
     }
 
@@ -321,4 +348,3 @@ def run_ingestion_with_sources_config(
 
     output_summary_path.write_text(json.dumps(summary_with_outputs, indent=2), encoding="utf-8")
     return summary_with_outputs
-

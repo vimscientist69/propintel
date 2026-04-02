@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import re
+import json
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 PHONE_RE = re.compile(r"\+?\d[\d\-\s()]{6,}\d")
@@ -83,6 +84,76 @@ def detect_chatbot_signal(html: str, chatbot_keywords: list[str] | None = None) 
     keywords = chatbot_keywords or []
     haystack = (html or "").lower()
     return any(keyword.lower() in haystack for keyword in keywords)
+
+
+def extract_contacts_from_jsonld(html: str) -> dict[str, list[str]]:
+    try:
+        from bs4 import BeautifulSoup
+    except Exception:
+        return {"emails": [], "phones": []}
+
+    soup = BeautifulSoup(html or "", "html.parser")
+    emails: set[str] = set()
+    phones: set[str] = set()
+    for tag in soup.select("script[type='application/ld+json']"):
+        raw = (tag.string or tag.get_text() or "").strip()
+        if not raw:
+            continue
+        try:
+            payload = json.loads(raw)
+        except Exception:
+            continue
+
+        items = payload if isinstance(payload, list) else [payload]
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            email = str(item.get("email") or "").strip()
+            phone = str(item.get("telephone") or "").strip()
+            if email:
+                emails.add(email)
+            if phone:
+                phones.add(phone)
+            contact_point = item.get("contactPoint")
+            cp_items = contact_point if isinstance(contact_point, list) else [contact_point]
+            for cp in cp_items:
+                if not isinstance(cp, dict):
+                    continue
+                cp_email = str(cp.get("email") or "").strip()
+                cp_phone = str(cp.get("telephone") or "").strip()
+                if cp_email:
+                    emails.add(cp_email)
+                if cp_phone:
+                    phones.add(cp_phone)
+    return {"emails": sorted(emails), "phones": sorted(phones)}
+
+
+def discover_contact_page_urls(base_url: str, html: str) -> list[str]:
+    try:
+        from bs4 import BeautifulSoup
+    except Exception:
+        return []
+
+    soup = BeautifulSoup(html or "", "html.parser")
+    discovered: list[str] = []
+    seen: set[str] = set()
+    keywords = ("contact", "about", "team", "agents")
+    for tag in soup.select("a[href]"):
+        href = (tag.get("href") or "").strip()
+        if not href:
+            continue
+        low = href.lower()
+        if not any(k in low for k in keywords):
+            continue
+        absolute = urljoin(base_url, href)
+        parsed = urlparse(absolute)
+        if parsed.scheme not in ("http", "https"):
+            continue
+        if absolute in seen:
+            continue
+        seen.add(absolute)
+        discovered.append(absolute)
+    return discovered[:3]
 
 
 def _is_plausible_company_domain(company_name: str, candidate_url: str) -> bool:

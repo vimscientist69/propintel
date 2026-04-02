@@ -82,6 +82,15 @@ Inside that folder, filenames include the same timestamp:
   - prefer highest-confidence validated candidate
   - on website ties, prefer verified Google Maps candidate
   - otherwise keep current canonical value on tie
+- Advanced parser additions:
+  - JSON-LD (`application/ld+json`) contact extraction is used alongside HTML text/link parsing
+  - contact-like pages (`/contact`, `/about`, `/team`, `/agents`) are fetched opportunistically
+  - email normalization rejects disposable domains; phone normalization prefers E.164 when available
+- Run summary now includes quality metrics:
+  - `schema_contacts_used`
+  - `email_disposable_rejected`
+  - `multi_page_fetch_success`
+  - `phone_e164_valid_rate`
 
 ## API Endpoints
 

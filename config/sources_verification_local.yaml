@@ -1,0 +1,68 @@
+# Local / offline-friendly config: skips website fetch and Google Maps so runs
+# do not require SERPER_API_KEY or GOOGLE_MAPS_API_KEY. Use with
+# sample_data/sample_leads_verification.csv to exercise Week 3 verification only.
+
+sources:
+  input:
+    required_any:
+      - company_name
+    schema_aliases:
+      company_name:
+        - company_name
+        - company
+        - agency
+        - agency_name
+        - business
+        - business_name
+        - businessname
+        - listing_context
+        - listingcontext
+      agent_name:
+        - agent_name
+        - agent
+        - contact_person
+        - person
+        - representative
+      website:
+        - website
+        - site
+        - url
+        - homepage
+        - domain
+      email:
+        - email
+        - agent_email
+        - emails
+        - contact_email
+        - contactemail
+        - mail
+      phone:
+        - phone
+        - phones
+        - mobile
+        - telephone
+        - tel
+      location:
+        - location
+        - city
+        - town
+        - region
+        - province
+        - state
+        - country
+      source:
+        - source
+        - origin
+        - lead_source
+        - data_source
+    defaults:
+      source: input
+
+    # Allow malformed email/phone in CSV so verify_lead can label them (Week 3 E2E sample).
+    strict_contact_validation: false
+
+  website:
+    enabled: false
+
+  google_maps:
+    enabled: false

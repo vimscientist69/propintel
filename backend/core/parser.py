@@ -126,15 +126,24 @@ def map_row_to_canonical(
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
-def validate_mapped_lead(lead: Mapping[str, Any]) -> str | None:
+def validate_mapped_lead(
+    lead: Mapping[str, Any],
+    mapping_config: Mapping[str, Any] | None = None,
+) -> str | None:
     """
-    Lightweight validation used in Week 1.
+    Lightweight validation used at map time (Week 1).
 
-    Rules (intentionally basic; full verification is a later MVP stage):
-    - `email` must match a basic email regex if present
-    - `phone` must contain at least 7 digits if present
-    - `website` must look like a domain or URL if present
+    When ``strict_contact_validation`` is true in ``mapping_config`` (default), rejects
+    obviously bad ``email`` / ``phone`` / ``website`` so junk does not enter the pipeline.
+
+    Set ``strict_contact_validation`` to false to accept any string values for those fields
+    (identity via ``required_any`` still applies). Use for tests or when downstream
+    enrichment + :func:`verify_lead` should judge final quality.
     """
+    cfg = mapping_config or {}
+    if not cfg.get("strict_contact_validation", True):
+        return None
+
     email = lead.get("email")
     if is_non_empty_str(email) and not _EMAIL_RE.match(email or ""):
         return "invalid_email"
@@ -180,7 +189,7 @@ def load_csv_mapped(
         if lead is None:
             rejected.append({"row_index": idx, "reason": reason or "invalid_row"})
             continue
-        validation_reason = validate_mapped_lead(lead)
+        validation_reason = validate_mapped_lead(lead, mapping_config)
         if validation_reason is not None:
             rejected.append({"row_index": idx, "reason": validation_reason})
             continue
@@ -250,7 +259,7 @@ def load_json_mapped(
         if lead is None:
             rejected.append({"row_index": idx, "reason": reason or "invalid_row"})
             continue
-        validation_reason = validate_mapped_lead(lead)
+        validation_reason = validate_mapped_lead(lead, mapping_config)
         if validation_reason is not None:
             rejected.append({"row_index": idx, "reason": validation_reason})
             continue
@@ -307,7 +316,7 @@ def load_propflux_mapped(
         if lead is None:
             rejected.append({"row_index": idx, "reason": reason or "invalid_row"})
             continue
-        validation_reason = validate_mapped_lead(lead)
+        validation_reason = validate_mapped_lead(lead, mapping_config)
         if validation_reason is not None:
             rejected.append({"row_index": idx, "reason": validation_reason})
             continue

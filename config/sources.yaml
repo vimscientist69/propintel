@@ -61,6 +61,10 @@ sources:
     defaults:
       source: input
 
+    # When true (default), rows with invalid email/phone/website shapes are rejected at parse time.
+    # Set to false only when bad input should flow to enrichment + Week 3 verify_lead (e.g. verification samples).
+    strict_contact_validation: true
+
   website:
     enabled: true
     discover_with_serper: true

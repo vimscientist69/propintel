@@ -95,6 +95,7 @@ Inside that folder, filenames include the same timestamp:
 ### Contact verification (Week 3)
 - After conflict resolution, each lead gets `contact_quality` (`verified` / `likely` / `low`) from the same rules as `contact_parser` (format, disposable email, E.164 phone): both valid → `verified`, one valid → `likely`, otherwise → `low`.
 - `verification` on each lead holds per-field validity and reasons; a copy is stored under `enrichment_history.verification`.
+- End-to-end CLI testing with sample data: see `docs/verification_e2e_testing.md`.
 
 ## API Endpoints
 

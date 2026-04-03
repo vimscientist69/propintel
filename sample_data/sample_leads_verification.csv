@@ -1,0 +1,9 @@
+company_name,website,email,phone,location,source
+Scenario_Verified_ZA_Both,,qa.verified@example.com,+27825550199,Cape Town,verification_sample
+Scenario_Likely_Email_Only,,only.email@example.com,,Durban,verification_sample
+Scenario_Likely_Phone_Only,,,+27825550198,Johannesburg,verification_sample
+Scenario_Likely_DisposableEmail_ValidPhone,,burn@mailinator.com,+27825550197,George,verification_sample
+Scenario_Low_BadEmail_NoPhone,,not-an-email,,Pretoria,verification_sample
+Scenario_Low_NoContacts,,,,Port Elizabeth,verification_sample
+Scenario_Verified_US_E164,,intl.us@example.com,+14155552671,Remote,verification_sample
+Scenario_Low_BothInvalid,,@@@,12,Nowhere,verification_sample

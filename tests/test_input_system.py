@@ -72,6 +72,34 @@ class TestInputSystem(unittest.TestCase):
             self.assertEqual(len(rejected), 1)
             self.assertIn("reason", rejected[0])
 
+    def test_load_csv_mapped_relaxed_contact_validation_keeps_bad_email(self) -> None:
+        cfg = dict(self.mapping_cfg)
+        cfg["strict_contact_validation"] = False
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            csv_path = tmp_path / "leads.csv"
+            with csv_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["Company", "email", "website"])
+                writer.writeheader()
+                writer.writerow(
+                    {
+                        "Company": "Acme Realty",
+                        "email": "info@acme.co.za",
+                        "website": "acme.co.za",
+                    }
+                )
+                writer.writerow(
+                    {
+                        "Company": "Bad Co",
+                        "email": "bad-email",
+                        "website": "acme.co.za",
+                    }
+                )
+
+            leads, rejected = load_csv_mapped(csv_path, cfg)
+            self.assertEqual(len(leads), 2)
+            self.assertEqual(len(rejected), 0)
+
     def test_normalize_and_deduplicate(self) -> None:
         leads = [
             {

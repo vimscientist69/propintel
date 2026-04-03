@@ -1,6 +1,9 @@
 # Local / offline-friendly config: skips website fetch and Google Maps so runs
 # do not require SERPER_API_KEY or GOOGLE_MAPS_API_KEY. Use with
 # sample_data/sample_leads_verification.csv to exercise Week 3 verification only.
+#
+# Scoring block matches production keys so E2E tests can pin weights; flip
+# scoring.enabled to false to leave lead_score / lead_reason unset until scorer runs.
 
 sources:
   input:
@@ -66,3 +69,19 @@ sources:
 
   google_maps:
     enabled: false
+
+  scoring:
+    enabled: true
+    base_score: 45
+    weights:
+      contact_quality_verified: 25
+      contact_quality_likely: 10
+      contact_quality_low: -15
+      both_channels_bonus: 5
+      chatbot_penalty: -10
+      last_updated_bonus: 5
+      last_updated_unknown_penalty: 0
+      has_website: 10
+      google_maps_source_bonus: 5
+      has_location_bonus: 3
+      has_agent_name_bonus: 2

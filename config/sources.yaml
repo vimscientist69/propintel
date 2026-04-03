@@ -94,3 +94,25 @@ sources:
     min_name_match_score: 0.5
     region: "za"
     language: "en"
+
+  # Lead scoring (Week 3). Wired in ingestion after verify_lead; see backend/services/scorer.py.
+  # When enabled: false, the pipeline leaves lead_score / lead_reason / confidence_score unset (null in JSON exports).
+  scoring:
+    enabled: true
+    base_score: 45
+    weights:
+      # Contact strength (contact_quality + verification)
+      contact_quality_verified: 25
+      contact_quality_likely: 10
+      contact_quality_low: -15
+      both_channels_bonus: 5
+      # Chatbot / live widgets on site
+      chatbot_penalty: -10
+      # Freshness wording in crawl (last_updated_signal)
+      last_updated_bonus: 5
+      last_updated_unknown_penalty: 0
+      has_website: 10
+      # Business activity / credibility
+      google_maps_source_bonus: 5
+      has_location_bonus: 3
+      has_agent_name_bonus: 2

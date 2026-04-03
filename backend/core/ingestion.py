@@ -17,6 +17,7 @@ from backend.services.conflict_resolver import (
 )
 from backend.services.enrichment import enrich_lead
 from backend.services.google_maps import enrich_lead_from_google_maps
+from backend.services.scorer import confidence_from_score, score_lead
 from backend.services.verifier import verify_lead
 
 
@@ -65,6 +66,9 @@ def ingest_to_structures_with_sources_config(
     deduped_leads = deduplicate(normalized_leads)
     website_cfg = (sources_cfg.get("website") or {}) if isinstance(sources_cfg, dict) else {}
     google_maps_cfg = (sources_cfg.get("google_maps") or {}) if isinstance(sources_cfg, dict) else {}
+    scoring_cfg = (sources_cfg.get("scoring") or {}) if isinstance(sources_cfg, dict) else {}
+    scoring_enabled = bool(scoring_cfg.get("enabled", True))
+    scored_rows = 0
 
     enriched_leads: list[dict[str, Any]] = []
     for lead in deduped_leads:
@@ -206,6 +210,12 @@ def ingest_to_structures_with_sources_config(
         resolved.pop("_google_maps_values", None)
         verify_lead(resolved, in_place=True)
         resolved["enrichment_history"]["verification"] = resolved.get("verification")
+        if scoring_enabled:
+            ls, lr = score_lead(resolved, scoring_cfg)
+            resolved["lead_score"] = ls
+            resolved["lead_reason"] = lr
+            resolved["confidence_score"] = confidence_from_score(ls)
+            scored_rows += 1
         resolved_leads.append(resolved)
 
     summary = {
@@ -235,6 +245,7 @@ def ingest_to_structures_with_sources_config(
                 if phone_e164_total
                 else 0.0
             ),
+            "scored_rows": scored_rows if scoring_enabled else 0,
         },
     }
 

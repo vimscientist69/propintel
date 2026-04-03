@@ -99,8 +99,9 @@ Inside that folder, filenames include the same timestamp:
 
 ### Lead scoring (configuration)
 
-- Configure under `sources.scoring` in `config/sources.yaml`: `enabled`, `base_score`, and `weights` (contact quality, chatbot penalty, freshness, website, Google Maps / location / agent bonuses). Same shape is mirrored in `config/sources_verification_local.yaml` for offline runs.
-- When **`scoring.enabled`** is **`false`**, ingestion does not compute scores and **`lead_score`**, **`lead_reason`**, and **`confidence_score`** stay **unset** (JSON `null` / omitted in exports once scoring is wired). When **`true`**, `backend/services/scorer.py` uses these weights after verification.
+- **`backend/services/scorer.py`** runs after verification on each lead when **`sources.scoring.enabled`** is **`true`** (default in `config/sources.yaml`). It fills **`lead_score`** (0–100), **`lead_reason`**, and **`confidence_score`** (same scale as score for the MVP).
+- Configure **`enabled`**, **`base_score`**, and **`weights`** (contact quality, chatbot penalty, freshness, website, Google Maps / location / agent bonuses). The same shape is in **`config/sources_verification_local.yaml`** for offline runs.
+- When **`scoring.enabled`** is **`false`**, those fields are **not** set on the lead (no score step).
 
 ## API Endpoints
 

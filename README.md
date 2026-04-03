@@ -92,6 +92,10 @@ Inside that folder, filenames include the same timestamp:
   - `multi_page_fetch_success`
   - `phone_e164_valid_rate`
 
+### Contact verification (Week 3)
+- After conflict resolution, each lead gets `contact_quality` (`verified` / `likely` / `low`) from the same rules as `contact_parser` (format, disposable email, E.164 phone): both valid → `verified`, one valid → `likely`, otherwise → `low`.
+- `verification` on each lead holds per-field validity and reasons; a copy is stored under `enrichment_history.verification`.
+
 ## API Endpoints
 
 These endpoints trigger the same Week 1 ingestion pipeline as the CLI.

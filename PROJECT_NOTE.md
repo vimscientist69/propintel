@@ -316,11 +316,11 @@ The final project must include:
 ## **Week 2**
 
 - [x] Google Maps integration
-- [ ] contact extraction + normalization
+- [x] contact extraction + normalization
 
 ## **Week 3**
 
-- [ ] verification logic
+- [x] verification logic
 - [ ] lead scoring system
 - [ ] API endpoints
 

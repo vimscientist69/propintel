@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import patch
 
 from backend.services.enrichment import enrich_lead
+from backend.services.verifier import verify_lead
 
 
 class TestWebsiteEnrichment(unittest.TestCase):
@@ -24,7 +25,7 @@ class TestWebsiteEnrichment(unittest.TestCase):
             "phone": None,
         }
         with patch("backend.services.enrichment.discover_company_website", return_value=None):
-            enriched = enrich_lead(lead, self.website_cfg)
+            enriched = verify_lead(enrich_lead(lead, self.website_cfg))
         self.assertEqual(enriched.get("company_name"), "Acme Realty")
         self.assertIsNone(enriched.get("email"))
         self.assertEqual(enriched.get("contact_quality"), "low")
@@ -50,7 +51,7 @@ class TestWebsiteEnrichment(unittest.TestCase):
                 "phones": ["+27 82 555 0199"],
             },
         ):
-            enriched = enrich_lead(lead, self.website_cfg)
+            enriched = verify_lead(enrich_lead(lead, self.website_cfg))
 
         self.assertEqual(enriched.get("website"), "https://acme.co.za")
         self.assertIsNotNone(enriched.get("email"))
@@ -72,7 +73,7 @@ class TestWebsiteEnrichment(unittest.TestCase):
             "backend.services.enrichment.discover_company_website",
             return_value="https://new-acme.co.za",
         ):
-            enriched = enrich_lead(lead, self.website_cfg)
+            enriched = verify_lead(enrich_lead(lead, self.website_cfg))
         self.assertEqual(enriched.get("website"), "https://new-acme.co.za")
         self.assertEqual(enriched.get("enrichment_error"), "timeout")
         self.assertEqual(enriched.get("contact_quality"), "low")
@@ -90,7 +91,7 @@ class TestWebsiteEnrichment(unittest.TestCase):
             "backend.services.enrichment.fetch_website_html",
             return_value={"ok": False, "html": "", "error": "timeout"},
         ):
-            enriched = enrich_lead(lead, cfg)
+            enriched = verify_lead(enrich_lead(lead, cfg))
         self.assertIsNone(enriched.get("website"))
         self.assertEqual(enriched.get("contact_quality"), "low")
 

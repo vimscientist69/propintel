@@ -17,6 +17,7 @@ from backend.services.conflict_resolver import (
 )
 from backend.services.enrichment import enrich_lead
 from backend.services.google_maps import enrich_lead_from_google_maps
+from backend.services.verifier import verify_lead
 
 
 logger = get_logger(__name__)
@@ -203,6 +204,8 @@ def ingest_to_structures_with_sources_config(
         resolved.pop("_website_values", None)
         resolved.pop("_website_contact_stats", None)
         resolved.pop("_google_maps_values", None)
+        verify_lead(resolved, in_place=True)
+        resolved["enrichment_history"]["verification"] = resolved.get("verification")
         resolved_leads.append(resolved)
 
     summary = {

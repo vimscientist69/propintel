@@ -12,9 +12,6 @@ from backend.services.scraper import (
     extract_contacts_from_html,
     fetch_website_html,
 )
-from backend.services.verifier import verify_contact_quality
-
-
 def _load_env() -> None:
     # Allow .env-based local usage without requiring shell export.
     try:
@@ -82,11 +79,8 @@ def enrich_lead(
             enriched["website"] = discovered
 
     # If no website could be found, skip website enrichment gracefully.
+    # contact_quality is set once after conflict resolution in ingestion (verify_lead).
     if not website:
-        enriched["contact_quality"] = verify_contact_quality(
-            enriched.get("email"),
-            enriched.get("phone"),
-        )
         return enriched
 
     fetch_result = _fetch_with_retries(
@@ -117,18 +111,10 @@ def enrich_lead(
         if not fetch_result.get("ok"):
             if not cfg.get("discover_with_serper", True) or not enriched.get("website"):
                 enriched["website"] = None
-            enriched["contact_quality"] = verify_contact_quality(
-                enriched.get("email"),
-                enriched.get("phone"),
-            )
             enriched["enrichment_error"] = fetch_result.get("error")
             return enriched
 
     if not fetch_result.get("ok"):
-        enriched["contact_quality"] = verify_contact_quality(
-            enriched.get("email"),
-            enriched.get("phone"),
-        )
         enriched["enrichment_error"] = fetch_result.get("error")
         return enriched
 
@@ -206,8 +192,4 @@ def enrich_lead(
 
     enriched["has_chatbot"] = detect_chatbot_signal(html, chatbot_keywords)
     enriched["last_updated_signal"] = "detected" if "updated" in html.lower() else "unknown"
-    enriched["contact_quality"] = verify_contact_quality(
-        enriched.get("email"),
-        enriched.get("phone"),
-    )
     return enriched

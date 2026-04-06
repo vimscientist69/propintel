@@ -1,0 +1,70 @@
+[
+  {
+    "company_name": "[QA chat+] Zendesk (expects vendor scripts)",
+    "website": "https://www.zendesk.com",
+    "email": "qa.chatbot.positive@example.com",
+    "phone": "+27821234001",
+    "location": "San Francisco, CA, USA",
+    "agent_name": "QA Bot",
+    "source": "input,google_maps"
+  },
+  {
+    "company_name": "[QA chat-] IANA reserved root (minimal page)",
+    "website": "https://www.iana.org/domains/reserved",
+    "email": "qa.chatbot.negative@example.com",
+    "phone": "+27821234002",
+    "location": "Los Angeles, CA, USA",
+    "agent_name": "QA Minimal",
+    "source": "input,google_maps"
+  },
+  {
+    "company_name": "[QA fresh+] Vercel (modern meta / structured data)",
+    "website": "https://vercel.com",
+    "email": "qa.freshness.positive@example.com",
+    "phone": "+27821234003",
+    "location": "Cape Town, Western Cape, South Africa",
+    "agent_name": "QA Modern",
+    "source": "input,google_maps"
+  },
+  {
+    "company_name": "[QA fresh-] CERN first website (minimal legacy HTML)",
+    "website": "https://info.cern.ch",
+    "email": "qa.freshness.sparse@example.com",
+    "phone": "+27821234004",
+    "location": "Geneva, Switzerland",
+    "agent_name": "QA Legacy",
+    "source": "input,google_maps"
+  },
+  {
+    "company_name": "[QA contact-weak] Deliberately empty email and phone",
+    "website": "https://example.com",
+    "location": "Johannesburg, Gauteng, South Africa",
+    "agent_name": "QA Sparse",
+    "source": "input,google_maps"
+  },
+  {
+    "company_name": "[QA contact-strong] Full email and phone on input row",
+    "website": "https://www.chaseveritt.co.za",
+    "email": "qa.full.contact@example.com",
+    "phone": "+27821234006",
+    "location": "Durban, KwaZulu-Natal, South Africa",
+    "agent_name": "QA Complete",
+    "source": "input,google_maps"
+  },
+  {
+    "company_name": "[QA activity+] All activity bonuses (Maps source + location + agent)",
+    "website": "https://www.privateproperty.co.za",
+    "email": "qa.activity.high@example.com",
+    "phone": "+27821234007",
+    "location": "Sandton, Johannesburg, Gauteng, South Africa",
+    "agent_name": "Thandi Nkosi",
+    "source": "input,google_maps"
+  },
+  {
+    "company_name": "[QA activity-] No Maps tag, no location, no agent",
+    "website": "https://www.remax.co.za",
+    "email": "qa.activity.low@example.com",
+    "phone": "+27821234008",
+    "source": "input"
+  }
+]

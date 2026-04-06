@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import re
 import json
+import re
+import time
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -28,28 +29,43 @@ def fetch_website_html(
 
     normalized = _normalize_url(url)
     if not normalized:
-        return {"ok": False, "url": None, "status_code": None, "html": "", "error": "empty_url"}
+        return {
+            "ok": False,
+            "url": None,
+            "status_code": None,
+            "html": "",
+            "error": "empty_url",
+            "elapsed_ms": None,
+        }
 
     try:
+        t0 = time.perf_counter()
         response = requests.get(
             normalized,
             timeout=timeout_seconds,
             headers={"User-Agent": user_agent},
         )
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
         return {
             "ok": response.ok,
             "url": normalized,
             "status_code": response.status_code,
             "html": response.text if response.ok else "",
             "error": None if response.ok else f"http_{response.status_code}",
+            "elapsed_ms": elapsed_ms,
         }
     except requests.RequestException as exc:
+        try:
+            elapsed_ms = int((time.perf_counter() - t0) * 1000)  # type: ignore[name-defined]
+        except Exception:
+            elapsed_ms = None
         return {
             "ok": False,
             "url": normalized,
             "status_code": None,
             "html": "",
             "error": str(exc),
+            "elapsed_ms": elapsed_ms,
         }
 
 
@@ -80,10 +96,88 @@ def extract_contacts_from_html(html: str) -> dict[str, list[str]]:
     }
 
 
+# Third-party chat / automation scripts (substring match on full HTML).
+CHATBOT_VENDOR_PATTERNS: tuple[str, ...] = (
+    "intercom.io",
+    "intercom-",
+    "drift.com",
+    "driftt.com",
+    "js.hs-scripts.com",
+    "hubspotfeedback",
+    "usemessages.com/conversations-embed",
+    "tawk.to",
+    "embed.tawk.to",
+    "crisp.chat",
+    "client.crisp.chat",
+    "livechatinc.com",
+    "cdn.livechatinc.com",
+    "zendesk.com/embeddable",
+    "static.zdassets.com",
+    "olark.com",
+    "snapengage.com",
+    "tidiochat",
+    "tidio.co",
+    "purechat.com",
+    "facebook.com/platform/chat",
+    "whatsapp.com/send",
+    "smartsuppchat",
+    "userlike.com",
+)
+
+
 def detect_chatbot_signal(html: str, chatbot_keywords: list[str] | None = None) -> bool:
+    """
+    True if configured keywords appear in HTML or common chat-widget vendor URLs/scripts match.
+    """
     keywords = chatbot_keywords or []
     haystack = (html or "").lower()
-    return any(keyword.lower() in haystack for keyword in keywords)
+    if any(keyword.lower() in haystack for keyword in keywords):
+        return True
+    return any(pat in haystack for pat in CHATBOT_VENDOR_PATTERNS)
+
+
+_FRESHNESS_PATTERNS = (
+    re.compile(r"last\s+(updated|modified|revised|edited)", re.I),
+    re.compile(r"updated\s*:", re.I),
+    re.compile(r"article:modified_time", re.I),
+    re.compile(r"og:updated_time", re.I),
+    re.compile(r"datepublished|datemodified", re.I),
+    re.compile(r"<time[^>]+datetime=", re.I),
+)
+
+
+def detect_freshness_signal(html: str) -> bool:
+    """
+    Heuristic: page suggests recent maintenance (wording, meta, structured data).
+    """
+    if not (html or "").strip():
+        return False
+    low = html.lower()
+    if "updated" in low and len(low) > 200:
+        return True
+    for rx in _FRESHNESS_PATTERNS:
+        if rx.search(html):
+            return True
+    return False
+
+
+def latency_to_speed_score(elapsed_ms: int | None) -> int | None:
+    """
+    Map HTTP fetch duration to 0–100 (higher = snappier). None if no measurement.
+    """
+    if elapsed_ms is None or elapsed_ms < 0:
+        return None
+    if elapsed_ms < 400:
+        return 100
+    if elapsed_ms < 900:
+        return 88
+    if elapsed_ms < 1800:
+        return 72
+    if elapsed_ms < 3500:
+        return 55
+    if elapsed_ms < 6000:
+        return 35
+    return max(5, 25 - min(20, (elapsed_ms - 6000) // 500))
 
 
 def extract_contacts_from_jsonld(html: str) -> dict[str, list[str]]:

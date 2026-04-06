@@ -69,9 +69,28 @@ def score_lead(lead: dict[str, Any], scoring_cfg: dict[str, Any] | None = None) 
         score += _w(cfg, "last_updated_unknown_penalty", 0)
         if lu == "unknown" or not lu:
             fragments.append("No freshness signal in crawl")
+
     ws = lead.get("website_speed_score")
-    if ws is not None and ws != "":
-        fragments.append("Website speed score present")
+    if isinstance(ws, (int, float)):
+        wsi = max(0, min(100, int(ws)))
+        hi_th = int(_w(cfg, "website_speed_high_threshold", 80))
+        mid_th = int(_w(cfg, "website_speed_mid_threshold", 55))
+        low_th = int(_w(cfg, "website_speed_low_threshold", 35))
+        if wsi >= hi_th:
+            score += _w(cfg, "website_speed_high_bonus", 4)
+            fragments.append("Fast website response")
+        elif wsi >= mid_th:
+            score += _w(cfg, "website_speed_mid_bonus", 2)
+            fragments.append("Moderate website response time")
+        elif wsi < low_th:
+            score += _w(cfg, "website_speed_low_penalty", -5)
+            fragments.append("Slow website response")
+        else:
+            fragments.append("Website response time acceptable")
+    else:
+        score += _w(cfg, "website_speed_unknown_penalty", 0)
+        if _non_empty_str(lead.get("website")):
+            fragments.append("Website speed not measured")
 
     # --- Dimension 4: business activity ---
     src = str(lead.get("source") or "").lower()
@@ -87,7 +106,7 @@ def score_lead(lead: dict[str, Any], scoring_cfg: dict[str, Any] | None = None) 
 
     final = int(round(max(0.0, min(100.0, score))))
     # Keep reason readable: join first N fragments (enough for all dimensions)
-    reason_parts = fragments[:8]
+    reason_parts = fragments[:12]
     reason = "; ".join(reason_parts) if reason_parts else "Baseline score"
     return final, reason
 

@@ -7,11 +7,15 @@ from backend.services.contact_parser import normalize_email_advanced, normalize_
 from backend.services.scraper import (
     discover_contact_page_urls,
     detect_chatbot_signal,
+    detect_freshness_signal,
     discover_company_website,
     extract_contacts_from_jsonld,
     extract_contacts_from_html,
     fetch_website_html,
+    latency_to_speed_score,
 )
+
+
 def _load_env() -> None:
     # Allow .env-based local usage without requiring shell export.
     try:
@@ -179,6 +183,10 @@ def enrich_lead(
         "email": selected_email,
         "phone": selected_phone,
     }
+    combined_html = "\n".join(page_html for _, page_html in page_htmls)
+    primary_elapsed = fetch_result.get("elapsed_ms")
+    speed_score = latency_to_speed_score(primary_elapsed if isinstance(primary_elapsed, int) else None)
+
     enriched["_website_contact_stats"] = {
         "schema_contacts_used": schema_contacts_used,
         "email_disposable_rejected": email_disposable_rejected,
@@ -188,8 +196,11 @@ def enrich_lead(
         "email_validation_reason": selected_email_reason,
         "phone_validation_reason": selected_phone_reason,
         "email_quality": selected_email_quality,
+        "fetch_elapsed_ms": primary_elapsed,
     }
 
-    enriched["has_chatbot"] = detect_chatbot_signal(html, chatbot_keywords)
-    enriched["last_updated_signal"] = "detected" if "updated" in html.lower() else "unknown"
+    enriched["has_chatbot"] = detect_chatbot_signal(combined_html, chatbot_keywords)
+    enriched["last_updated_signal"] = "detected" if detect_freshness_signal(combined_html) else "unknown"
+    if speed_score is not None:
+        enriched["website_speed_score"] = speed_score
     return enriched

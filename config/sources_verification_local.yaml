@@ -81,6 +81,13 @@ sources:
       chatbot_penalty: -10
       last_updated_bonus: 5
       last_updated_unknown_penalty: 0
+      website_speed_high_threshold: 80
+      website_speed_high_bonus: 4
+      website_speed_mid_threshold: 55
+      website_speed_mid_bonus: 2
+      website_speed_low_threshold: 35
+      website_speed_low_penalty: -5
+      website_speed_unknown_penalty: 0
       has_website: 10
       google_maps_source_bonus: 5
       has_location_bonus: 3

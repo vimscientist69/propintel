@@ -17,6 +17,13 @@ FIXTURE_CFG: dict = {
         "google_maps_source_bonus": 5,
         "has_location_bonus": 3,
         "has_agent_name_bonus": 2,
+        "website_speed_high_threshold": 80,
+        "website_speed_high_bonus": 4,
+        "website_speed_mid_threshold": 55,
+        "website_speed_mid_bonus": 2,
+        "website_speed_low_threshold": 35,
+        "website_speed_low_penalty": -5,
+        "website_speed_unknown_penalty": 0,
     },
 }
 
@@ -103,6 +110,16 @@ class TestScorer(unittest.TestCase):
     def test_confidence_from_score(self) -> None:
         self.assertEqual(confidence_from_score(82), 82)
         self.assertEqual(confidence_from_score(150), 100)
+
+    def test_website_speed_tiers(self) -> None:
+        base = _base_verified_lead()
+        s0, r0 = score_lead(base, FIXTURE_CFG)
+        self.assertIn("Website speed not measured", r0)
+        fast, _ = score_lead({**base, "website_speed_score": 90}, FIXTURE_CFG)
+        slow, r_slow = score_lead({**base, "website_speed_score": 20}, FIXTURE_CFG)
+        self.assertEqual(fast - s0, 4)
+        self.assertEqual(s0 - slow, 5)
+        self.assertIn("Slow", r_slow)
 
 
 if __name__ == "__main__":

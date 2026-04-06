@@ -3,6 +3,10 @@
 - [x] leads_20260326_134940.json serper website html validation logic is incorrect, as first lead "Southern Cape Properties" has a website, but website is not found.
 - [x] Test other sample inputs as well for basic website enrichment
 
+**Edge Cases**:
+- [ ] very big input files (OOM, no saves - risky if crashes or an api stops working)
+- [ ] google maps or other apis rate limiting handling
+
 ---
 
 Update project on portfolio, LinkedIn and Upwork

@@ -321,7 +321,7 @@ The final project must include:
 ## **Week 3**
 
 - [x] verification logic
-- [ ] lead scoring system
+- [x] lead scoring system
 - [ ] API endpoints
 
 ## **Week 4**

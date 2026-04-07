@@ -171,7 +171,7 @@ Optional: `GET .../leads?min_score=70&limit=50&offset=0` for server-side filter 
 
 ## 11. Definition of Done (Week 3 API checkbox)
 
-- [ ] `GET /jobs` list + pagination backed by SQLite.
+- [x] `GET /jobs` list + pagination backed by SQLite.
 - [ ] `POST /jobs` accepts **file** and **JSON body** variants; both persist input and run the same pipeline as CLI.
 - [ ] `GET /jobs/{id}/results` behavior documented: clear status for failed jobs (no ambiguous `500` for “job failed” if avoidable).
 - [ ] Export endpoints return CSV/JSON aligned with CLI outputs.

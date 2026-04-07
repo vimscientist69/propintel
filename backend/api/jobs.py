@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse
 
 from backend.core.ingestion import ingest_to_structures
@@ -14,6 +14,7 @@ from backend.core.storage_sqlite import (
     get_leads,
     init_db,
     insert_leads,
+    list_jobs,
     update_job_completed,
     update_job_failed,
     update_job_processing_started,
@@ -96,6 +97,27 @@ def submit_job(
     )
 
     return {"job_id": job_id, "status": "processing"}
+
+
+@router.get("")
+def list_jobs_endpoint(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status: str | None = Query(None),
+) -> dict[str, Any]:
+    init_db(DB_PATH)
+    items, total = list_jobs(
+        DB_PATH,
+        limit=limit,
+        offset=offset,
+        status=status,
+    )
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/{job_id}")

@@ -8,6 +8,7 @@ from backend.core.storage_sqlite import (
     get_leads,
     init_db,
     insert_leads,
+    list_jobs,
     update_job_completed,
     update_job_failed,
     update_job_processing_started,
@@ -66,6 +67,40 @@ class TestSqliteStorage(unittest.TestCase):
             self.assertIsNotNone(job)
             self.assertEqual(job["status"], "failed")
             self.assertEqual(job["error"], "boom")
+
+    def test_list_jobs_pagination_and_status_filter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "propintel.sqlite"
+            init_db(db_path)
+            create_job(db_path, job_id="job-1", input_format="csv", status="uploaded")
+            create_job(db_path, job_id="job-2", input_format="json", status="uploaded")
+            create_job(db_path, job_id="job-3", input_format="csv", status="uploaded")
+            update_job_processing_started(db_path, job_id="job-1")
+            update_job_completed(
+                db_path,
+                job_id="job-1",
+                counts={"mapped_valid_rows": 1},
+                rejected_rows=[],
+            )
+            update_job_failed(db_path, job_id="job-2", error="timeout")
+            update_job_processing_started(db_path, job_id="job-3")
+
+            first_page, total = list_jobs(db_path, limit=2, offset=0)
+            self.assertEqual(total, 3)
+            self.assertEqual(len(first_page), 2)
+            self.assertEqual(first_page[0]["job_id"], "job-3")
+            self.assertEqual(first_page[1]["job_id"], "job-2")
+
+            second_page, total2 = list_jobs(db_path, limit=2, offset=2)
+            self.assertEqual(total2, 3)
+            self.assertEqual(len(second_page), 1)
+            self.assertEqual(second_page[0]["job_id"], "job-1")
+
+            failed_only, failed_total = list_jobs(db_path, limit=10, offset=0, status="failed")
+            self.assertEqual(failed_total, 1)
+            self.assertEqual(len(failed_only), 1)
+            self.assertEqual(failed_only[0]["job_id"], "job-2")
+            self.assertEqual(failed_only[0]["error"], "timeout")
 
 
 if __name__ == "__main__":

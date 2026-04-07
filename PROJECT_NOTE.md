@@ -326,13 +326,89 @@ The final project must include:
 
 - [x] verification logic
 - [x] lead scoring system
-- [ ] API endpoints
+- [x] API endpoints
 
 ## **Week 4**
 
 - [ ] dashboard
 - [ ] deployment
 - [ ] polish + documentation
+
+### Week 4 Dashboard Implementation Plan
+
+#### 1) Product scope (dashboard-first)
+- Build a single-page dashboard that supports:
+  - upload dataset (CSV/JSON/PropFlux)
+  - create and monitor enrichment jobs
+  - inspect enriched leads and rejected rows
+  - filter/sort by lead score and quality signals
+  - export results (CSV/JSON)
+- Keep auth out of scope for MVP; run in trusted environment first.
+
+#### 2) Frontend stack and app skeleton
+- Framework: Next.js (App Router) + TypeScript.
+- UI: lightweight component library (or Tailwind + headless components).
+- Data fetching: React Query (or SWR) for polling and caching job/results endpoints.
+- Base pages:
+  - `/` -> jobs list + create/upload panel
+  - `/jobs/[id]` -> job detail, status, summary counts, result table
+  - `/jobs/[id]/rejected` -> rejected row diagnostics
+
+#### 3) API contract alignment (must-haves)
+- Use existing endpoints first:
+  - `POST /jobs` (multipart upload)
+  - `GET /jobs` (paginated listing)
+  - `GET /jobs/{id}` (status + counts + error)
+  - `GET /jobs/{id}/results` (leads when completed)
+- Add endpoint enhancements only if needed by UI:
+  - export route (`/jobs/{id}/export?format=csv|json`)
+  - optional server-side lead filtering for large result sets
+
+#### 4) Core UI flows
+- **Upload + create job**
+  - choose format + file, submit, optimistic row in jobs list.
+- **Job monitoring**
+  - poll every 2-3s while status is `processing`, then stop.
+  - show clear states: uploaded, processing, completed, failed.
+- **Result exploration**
+  - table columns: company, website, email, phone, location, contact_quality, lead_score, lead_reason.
+  - filters: min score, contact_quality, has_chatbot, freshness signal.
+  - sorting: lead_score desc by default.
+
+#### 5) Dashboard data model
+- Client-side model mirrors API payload:
+  - `JobListItem`: `job_id`, `status`, timestamps, counts, `error`
+  - `LeadRow`: canonical lead fields + enrichment/scoring fields
+- Keep types centralized under `frontend/src/types/api.ts` to reduce drift.
+
+#### 6) UX quality requirements
+- Empty/error states for all pages (no blank screens).
+- Progress indicators for uploads and processing states.
+- Failure handling with retry actions (`re-poll`, `download input`, `re-run` later).
+- URL state for filters/pagination so views are shareable.
+
+#### 7) Deployment plan
+- Deploy API and dashboard separately:
+  - API: Render/Railway (Python service)
+  - Dashboard: Vercel/Netlify (Next.js)
+- Configure API base URL via environment variable on dashboard.
+- Enable CORS only for dashboard origin(s).
+- Persist SQLite volume for API deployment (or migrate to Postgres if host is ephemeral).
+
+#### 8) Testing and acceptance
+- Frontend:
+  - component tests for upload form, status badge, lead table filters
+  - integration tests for job lifecycle (mock API)
+- E2E:
+  - upload sample file -> job completes -> results visible -> export works
+- Acceptance checklist:
+  - a non-technical user can run one full job and download results without CLI.
+
+#### 9) Estimated execution split (10h/week target)
+- **Day 1-2:** scaffold frontend, API client, jobs list page.
+- **Day 3:** upload/create job flow + polling.
+- **Day 4:** results table + filters + rejected rows.
+- **Day 5:** export wiring, UX polish, docs, deployment.
 
 ---
 

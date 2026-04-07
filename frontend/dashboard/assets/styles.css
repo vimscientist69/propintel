@@ -1,0 +1,77 @@
+:root {
+  color-scheme: light dark;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+body {
+  margin: 0;
+  background: #0b1020;
+  color: #dce4f7;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.card {
+  background: #141b2d;
+  border: 1px solid #26314f;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 16px;
+}
+.row, .inline-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+label {
+  min-width: 90px;
+}
+input, select, button {
+  background: #0f1527;
+  color: #e2e8f8;
+  border: 1px solid #334266;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  background: #1a2540;
+}
+.muted {
+  color: #9ab0dd;
+}
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 13px;
+}
+th, td {
+  border-bottom: 1px solid #2a3555;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+tr.job-row {
+  cursor: pointer;
+}
+tr.job-row:hover {
+  background: #1a2440;
+}
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+}

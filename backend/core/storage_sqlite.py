@@ -208,6 +208,72 @@ def get_job(db_path: str | Path, *, job_id: str) -> dict[str, Any] | None:
             conn.close()
 
 
+def list_jobs(
+    db_path: str | Path,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+    status: str | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return [], 0
+
+    safe_limit = max(1, min(100, int(limit)))
+    safe_offset = max(0, int(offset))
+    normalized_status = (status or "").strip()
+
+    with _DB_LOCK:
+        conn = _connect(db_path)
+        try:
+            where_sql = ""
+            where_params: tuple[Any, ...] = ()
+            if normalized_status:
+                where_sql = "WHERE status = ?"
+                where_params = (normalized_status,)
+
+            total_row = conn.execute(
+                f"SELECT COUNT(1) AS total FROM jobs {where_sql}",
+                where_params,
+            ).fetchone()
+            total = int(total_row["total"]) if total_row is not None else 0
+
+            rows = conn.execute(
+                f"""
+                SELECT job_id, status, created_at, started_at, completed_at,
+                       input_format, counts_json, rejected_rows_json, error
+                FROM jobs
+                {where_sql}
+                ORDER BY datetime(created_at) DESC, job_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (*where_params, safe_limit, safe_offset),
+            ).fetchall()
+
+            items: list[dict[str, Any]] = []
+            for row in rows:
+                counts = json.loads(row["counts_json"]) if row["counts_json"] else None
+                rejected_rows = (
+                    json.loads(row["rejected_rows_json"]) if row["rejected_rows_json"] else None
+                )
+                items.append(
+                    {
+                        "job_id": row["job_id"],
+                        "status": row["status"],
+                        "created_at": row["created_at"],
+                        "started_at": row["started_at"],
+                        "completed_at": row["completed_at"],
+                        "input_format": row["input_format"],
+                        "counts": counts,
+                        "rejected_rows": rejected_rows,
+                        "error": row["error"],
+                    }
+                )
+            return items, total
+        finally:
+            conn.close()
+
+
 def insert_leads(
     db_path: str | Path,
     *,

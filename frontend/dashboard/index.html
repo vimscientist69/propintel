@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PropIntel Dashboard</title>
+    <link rel="stylesheet" href="/dashboard/assets/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header>
+        <h1>PropIntel Dashboard</h1>
+        <p>Upload lead files, monitor jobs, inspect scored results.</p>
+      </header>
+
+      <section class="card">
+        <h2>Create Job</h2>
+        <form id="uploadForm">
+          <div class="row">
+            <label for="inputFormat">Input Format</label>
+            <select id="inputFormat" name="input_format">
+              <option value="csv">csv</option>
+              <option value="json">json</option>
+              <option value="propflux">propflux</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="inputFile">Dataset File</label>
+            <input id="inputFile" name="file" type="file" required />
+          </div>
+          <button type="submit">Upload + Run</button>
+          <span id="uploadStatus" class="muted"></span>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="between">
+          <h2>Jobs</h2>
+          <button id="refreshJobs" type="button">Refresh</button>
+        </div>
+        <div class="inline-filters">
+          <label for="statusFilter">Status</label>
+          <select id="statusFilter">
+            <option value="">all</option>
+            <option value="uploaded">uploaded</option>
+            <option value="processing">processing</option>
+            <option value="completed">completed</option>
+            <option value="failed">failed</option>
+          </select>
+        </div>
+        <table id="jobsTable">
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>Status</th>
+              <th>Format</th>
+              <th>Created</th>
+              <th>Counts</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section class="card" id="jobDetailsCard">
+        <div class="between">
+          <h2>Job Details</h2>
+          <span id="activeJobLabel" class="mono">none selected</span>
+        </div>
+        <div class="inline-filters">
+          <label for="minScoreFilter">Min Score</label>
+          <input id="minScoreFilter" type="number" min="0" max="100" value="0" />
+          <button id="applyFilters" type="button">Apply Filter</button>
+          <button id="exportJson" type="button">Export JSON</button>
+          <button id="exportCsv" type="button">Export CSV</button>
+        </div>
+        <p id="jobMeta" class="muted">Select a job to load details.</p>
+        <details>
+          <summary>Rejected Rows</summary>
+          <pre id="rejectedRows">[]</pre>
+        </details>
+        <table id="resultsTable">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Website</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Quality</th>
+              <th>Score</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </main>
+
+    <script src="/dashboard/assets/app.js"></script>
+  </body>
+</html>

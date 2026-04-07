@@ -1,0 +1,278 @@
+:root {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  color: #d9e3ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at top right, #111f49 0%, #04081b 45%, #020512 100%);
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+}
+
+.sidebar {
+  border-right: 1px solid rgba(117, 144, 255, 0.18);
+  padding: 18px 14px;
+  background: rgba(2, 7, 30, 0.7);
+}
+
+.brand {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.brand-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #5d79ff, #3f2fb6);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.brand-title {
+  font-weight: 600;
+}
+
+.brand-subtitle {
+  font-size: 11px;
+  color: #93a6e9;
+}
+
+.nav {
+  display: grid;
+  gap: 7px;
+}
+
+.nav-item {
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #9db0ec;
+  border-radius: 8px;
+  padding: 9px 10px;
+}
+
+.nav-item.active,
+.nav-item:hover {
+  background: rgba(83, 108, 233, 0.2);
+  border-color: rgba(126, 152, 255, 0.38);
+  color: #d9e5ff;
+}
+
+.main {
+  padding: 22px;
+}
+
+.header h1 {
+  margin: 10px 0 4px;
+  font-size: 30px;
+}
+
+.header p {
+  margin: 0 0 16px;
+  color: #8ea4e8;
+}
+
+.status-chip {
+  border: 1px solid rgba(130, 255, 220, 0.35);
+  color: #99f5d9;
+  font-size: 12px;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: rgba(19, 83, 74, 0.35);
+}
+
+.top-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 0.75fr;
+  gap: 16px;
+}
+
+.panel {
+  border: 1px solid rgba(98, 126, 230, 0.34);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(12, 22, 54, 0.86), rgba(5, 11, 32, 0.95));
+  padding: 14px;
+  margin-bottom: 16px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.panel h2 {
+  margin: 0 0 2px;
+  font-size: 17px;
+}
+
+.panel p {
+  margin: 0;
+  font-size: 12px;
+  color: #8da3e9;
+}
+
+.telemetry {
+  border-radius: 7px;
+  border: 1px solid rgba(125, 151, 255, 0.35);
+  padding: 4px 8px;
+  color: #b8c8ff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.progress-wrap {
+  margin-top: 12px;
+}
+
+.progress-line {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #45d3ff, #6a52ff 55%, #2b335e 55%);
+  margin-bottom: 4px;
+}
+
+.progress-wrap small {
+  color: #8398d8;
+}
+
+.control-form {
+  margin-top: 12px;
+}
+
+.row,
+.filters,
+.jobs-inline-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+label {
+  font-size: 12px;
+  color: #9fb3f0;
+}
+
+input,
+select,
+button {
+  border-radius: 8px;
+  border: 1px solid rgba(99, 125, 227, 0.5);
+  background: rgba(11, 20, 48, 0.92);
+  color: #dce7ff;
+  padding: 8px 10px;
+}
+
+button {
+  cursor: pointer;
+  background: linear-gradient(180deg, #5f72ff, #4c3dca);
+  border-color: rgba(126, 150, 255, 0.6);
+}
+
+button:hover {
+  filter: brightness(1.08);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ghost {
+  background: rgba(19, 28, 63, 0.7);
+}
+
+.muted {
+  color: #8ea4e8;
+  font-size: 12px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.job-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.job-list-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: rgba(13, 22, 50, 0.9);
+}
+
+.job-list-item.active,
+.job-list-item:hover {
+  background: rgba(75, 98, 203, 0.32);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  border-bottom: 1px solid rgba(102, 128, 222, 0.25);
+  padding: 10px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+thead th {
+  color: #9ab0ef;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rejected {
+  margin-top: 14px;
+}
+
+pre {
+  overflow-x: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: #afc0f7;
+}
+
+@media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(117, 144, 255, 0.18);
+  }
+  .top-grid {
+    grid-template-columns: 1fr;
+  }
+}

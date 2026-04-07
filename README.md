@@ -7,7 +7,7 @@ Production-style real estate lead intelligence platform.
 - `backend/api` - FastAPI route handlers and job endpoints
 - `backend/services` - enrichment, scraping, verification, scoring logic
 - `backend/core` - parsing, normalization, deduplication utilities
-- `frontend/dashboard` - dashboard app scaffold (Next.js planned)
+- `frontend/dashboard` - React + Vite dashboard (runs separately from API)
 - `config/sources.yaml` - configurable source extraction settings
 - `output` - generated export artifacts
 - `logs` - runtime logs written by the CLI (timestamped files under `logs/`)
@@ -22,6 +22,16 @@ Production-style real estate lead intelligence platform.
    - `python runner.py api --reload`
 4. Health check:
    - `curl http://127.0.0.1:8000/health`
+### Dashboard (React) local workflow
+
+- Install frontend dependencies:
+  - `cd frontend/dashboard && npm install`
+- Run Vite dev server:
+  - `npm run dev`
+- Open dashboard:
+  - `http://127.0.0.1:5173`
+- Keep API running in parallel:
+  - `python runner.py api --reload`
 
 ## CLI Usage
 

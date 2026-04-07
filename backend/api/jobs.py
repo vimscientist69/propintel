@@ -1,13 +1,16 @@
 from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
+import csv
+import io
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from backend.core.ingestion import ingest_to_structures
+from backend.core.parser import CANONICAL_FIELDS
 from backend.core.storage_sqlite import (
     create_job,
     get_job,
@@ -161,3 +164,42 @@ def get_results(job_id: str):
 
     leads = get_leads(DB_PATH, job_id=job_id)
     return {"job_id": job_id, "status": "completed", "leads": leads}
+
+
+@router.get("/{job_id}/rejected")
+def get_rejected_rows(job_id: str) -> dict[str, Any]:
+    job = get_job(DB_PATH, job_id=job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    return {
+        "job_id": job_id,
+        "status": job["status"],
+        "rejected_rows": job.get("rejected_rows") or [],
+    }
+
+
+@router.get("/{job_id}/export")
+def export_results(job_id: str, format: str = Query("json")) -> Response:
+    job = get_job(DB_PATH, job_id=job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    if job["status"] != "completed":
+        raise HTTPException(status_code=409, detail="job not completed")
+
+    leads = get_leads(DB_PATH, job_id=job_id)
+    export_format = format.strip().lower()
+    if export_format == "json":
+        body = JSONResponse(content=leads).body
+        headers = {"Content-Disposition": f'attachment; filename="propintel_{job_id}.json"'}
+        return Response(content=body, media_type="application/json", headers=headers)
+
+    if export_format == "csv":
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=list(CANONICAL_FIELDS), extrasaction="ignore")
+        writer.writeheader()
+        for lead in leads:
+            writer.writerow({k: lead.get(k) for k in CANONICAL_FIELDS})
+        headers = {"Content-Disposition": f'attachment; filename="propintel_{job_id}.csv"'}
+        return Response(content=buf.getvalue(), media_type="text/csv", headers=headers)
+
+    raise HTTPException(status_code=400, detail="unsupported export format")

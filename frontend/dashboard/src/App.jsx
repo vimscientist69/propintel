@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
+
 async function api(path, options = {}) {
-  const response = await fetch(path, options);
+  const url = `${API_BASE}${path}`;
+  const response = await fetch(url, options);
   const isJson = (response.headers.get("content-type") || "").includes("application/json");
   const payload = isJson ? await response.json() : await response.text();
   if (!response.ok) {
@@ -24,6 +27,7 @@ export function App() {
   const [leads, setLeads] = useState([]);
   const [uploadStatus, setUploadStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedFileName, setSelectedFileName] = useState("No file selected");
 
   const [minScore, setMinScore] = useState(0);
   const [qualityFilter, setQualityFilter] = useState("");
@@ -130,6 +134,13 @@ export function App() {
   const startIdx = jobsTotal === 0 ? 0 : jobsOffset + 1;
   const endIdx = Math.min(jobsOffset + JOB_LIMIT, jobsTotal);
   const recentJobs = jobs.slice(0, 6);
+  const activeJob = jobs.find((j) => j.job_id === activeJobId);
+  const statusTone = activeJob?.status || "idle";
+
+  const openExport = (format) => {
+    if (!activeJobId) return;
+    window.open(`${API_BASE}/jobs/${activeJobId}/export?format=${format}`, "_blank");
+  };
 
   return (
     <div className="app-shell">
@@ -164,24 +175,40 @@ export function App() {
                 <h2>Main Control Panel</h2>
                 <p>Choose input format, upload dataset, and dispatch a new job.</p>
               </div>
-              <span className="telemetry">{isSubmitting ? "Running" : "Idle"}</span>
+              <span className={`telemetry telemetry-${statusTone}`}>{isSubmitting ? "Running" : "Idle"}</span>
             </div>
             <div className="progress-wrap">
-              <div className="progress-line" />
+              <div className={`progress-line ${statusTone}`} />
               <small>{activeJobMeta}</small>
             </div>
             <form className="control-form" onSubmit={onSubmit}>
-              <div className="row">
-                <label htmlFor="input_format">Target input</label>
-                <select id="input_format" name="input_format" defaultValue="csv">
-                  <option value="csv">CSV</option>
-                  <option value="json">JSON</option>
-                  <option value="propflux">PropFlux JSON</option>
-                </select>
-                <label htmlFor="file">Dataset</label>
-                <input id="file" name="file" type="file" required />
+              <div className="form-grid">
+                <div className="field">
+                  <label htmlFor="input_format">Target input</label>
+                  <select id="input_format" name="input_format" defaultValue="csv">
+                    <option value="csv">CSV</option>
+                    <option value="json">JSON</option>
+                    <option value="propflux">PropFlux JSON</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="file">Dataset</label>
+                  <div className="file-picker">
+                    <input
+                      id="file"
+                      name="file"
+                      type="file"
+                      required
+                      onChange={(e) => setSelectedFileName(e.target.files?.[0]?.name || "No file selected")}
+                    />
+                    <label htmlFor="file" className="file-trigger">
+                      Choose file
+                    </label>
+                    <span className="file-name">{selectedFileName}</span>
+                  </div>
+                </div>
               </div>
-              <div className="row">
+              <div className="actions-row">
                 <button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? "Running..." : "Run job"}
                 </button>
@@ -239,7 +266,7 @@ export function App() {
                   onClick={() => setActiveJobId(job.job_id)}
                 >
                   <span className="mono">{job.job_id.slice(0, 8)}</span>
-                  <span>{job.status}</span>
+                  <span className={`pill pill-${job.status}`}>{job.status}</span>
                   <span>{job.input_format || "-"}</span>
                 </button>
               ))}
@@ -257,35 +284,47 @@ export function App() {
           </div>
 
           <div className="filters">
-            <input
-              id="minScore"
-              type="number"
-              min="0"
-              max="100"
-              value={minScore}
-              onChange={(e) => setMinScore(e.target.value)}
-              placeholder="Min score"
-            />
-            <select id="quality" value={qualityFilter} onChange={(e) => setQualityFilter(e.target.value)}>
-              <option value="">all quality</option>
-              <option value="verified">verified</option>
-              <option value="likely">likely</option>
-              <option value="low">low</option>
-            </select>
-            <select id="chatbot" value={chatbotFilter} onChange={(e) => setChatbotFilter(e.target.value)}>
-              <option value="">chatbot: all</option>
-              <option value="yes">has chatbot</option>
-              <option value="no">no chatbot</option>
-            </select>
-            <select id="freshness" value={freshnessFilter} onChange={(e) => setFreshnessFilter(e.target.value)}>
-              <option value="">freshness: all</option>
-              <option value="detected">detected</option>
-              <option value="unknown">unknown</option>
-            </select>
-            <button type="button" onClick={() => window.open(`/jobs/${activeJobId}/export?format=json`, "_blank")} disabled={!activeJobId}>
+            <div className="field compact">
+              <label htmlFor="minScore">Min score</label>
+              <input
+                id="minScore"
+                type="number"
+                min="0"
+                max="100"
+                value={minScore}
+                onChange={(e) => setMinScore(e.target.value)}
+                placeholder="0"
+              />
+            </div>
+            <div className="field compact">
+              <label htmlFor="quality">Quality</label>
+              <select id="quality" value={qualityFilter} onChange={(e) => setQualityFilter(e.target.value)}>
+                <option value="">all quality</option>
+                <option value="verified">verified</option>
+                <option value="likely">likely</option>
+                <option value="low">low</option>
+              </select>
+            </div>
+            <div className="field compact">
+              <label htmlFor="chatbot">Chatbot</label>
+              <select id="chatbot" value={chatbotFilter} onChange={(e) => setChatbotFilter(e.target.value)}>
+                <option value="">all</option>
+                <option value="yes">has chatbot</option>
+                <option value="no">no chatbot</option>
+              </select>
+            </div>
+            <div className="field compact">
+              <label htmlFor="freshness">Freshness</label>
+              <select id="freshness" value={freshnessFilter} onChange={(e) => setFreshnessFilter(e.target.value)}>
+                <option value="">all</option>
+                <option value="detected">detected</option>
+                <option value="unknown">unknown</option>
+              </select>
+            </div>
+            <button type="button" onClick={() => openExport("json")} disabled={!activeJobId}>
               Export JSON
             </button>
-            <button type="button" onClick={() => window.open(`/jobs/${activeJobId}/export?format=csv`, "_blank")} disabled={!activeJobId}>
+            <button type="button" onClick={() => openExport("csv")} disabled={!activeJobId}>
               Export CSV
             </button>
           </div>
@@ -304,10 +343,21 @@ export function App() {
                 </tr>
               </thead>
               <tbody>
+                {filteredLeads.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="empty-row">
+                      No lead rows yet. Select a completed job to inspect results.
+                    </td>
+                  </tr>
+                )}
                 {filteredLeads.map((lead, idx) => (
                   <tr key={`${lead.company_name || "row"}-${idx}`}>
                     <td>{lead.company_name || ""}</td>
-                    <td>{lead.contact_quality || ""}</td>
+                    <td>
+                      <span className={`pill pill-${lead.contact_quality || "unknown"}`}>
+                        {lead.contact_quality || "unknown"}
+                      </span>
+                    </td>
                     <td>{lead.website || ""}</td>
                     <td>{lead.email || ""}</td>
                     <td>{lead.phone || ""}</td>

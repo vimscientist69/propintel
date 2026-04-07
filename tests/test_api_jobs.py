@@ -84,5 +84,15 @@ class TestApiJobs(unittest.TestCase):
         r = self.client.get("/jobs/j4/export", params={"format": "json"})
         self.assertEqual(r.status_code, 409)
 
+    def test_terminate_job(self) -> None:
+        create_job(self.db_path, job_id="j5", input_format="csv", status="uploaded")
+        r = self.client.post("/jobs/j5/terminate")
+        self.assertEqual(r.status_code, 200)
+        payload = r.json()
+        self.assertEqual(payload["status"], "terminated")
+        status = self.client.get("/jobs/j5")
+        self.assertEqual(status.status_code, 200)
+        self.assertEqual(status.json()["status"], "terminated")
+
 if __name__ == "__main__":
     unittest.main()

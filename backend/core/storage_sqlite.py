@@ -168,6 +168,31 @@ def update_job_failed(
             conn.close()
 
 
+def update_job_terminated(
+    db_path: str | Path,
+    *,
+    job_id: str,
+    error: str = "terminated_by_user",
+) -> None:
+    db_path = Path(db_path)
+    with _DB_LOCK:
+        conn = _connect(db_path)
+        try:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status = ?,
+                    completed_at = ?,
+                    error = ?
+                WHERE job_id = ?
+                """,
+                ("terminated", _now_iso(), error, job_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
 def get_job(db_path: str | Path, *, job_id: str) -> dict[str, Any] | None:
     db_path = Path(db_path)
     if not db_path.exists():

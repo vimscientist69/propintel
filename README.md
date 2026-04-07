@@ -138,13 +138,16 @@ Response:
 ### Poll Status
 - `GET /jobs/{job_id}`
 
+### Terminate Running Job
+- `POST /jobs/{job_id}/terminate`
+
 ### Fetch Results
 - `GET /jobs/{job_id}/results`
 
 Behavior:
 - If not completed: HTTP `202` with `{ "job_id": "...", "status": "<processing|uploaded|...>" }`
 - If completed: HTTP `200` with `{ "job_id": "...", "status": "completed", "leads": [ ... ] }`
-- If failed: HTTP `500` with `{ "job_id": "...", "status": "failed", "error": "..." }`
+- If failed/terminated: HTTP `409` with `{ "job_id": "...", "status": "failed|terminated", "error": "..." }`
 
 ## Notes
 

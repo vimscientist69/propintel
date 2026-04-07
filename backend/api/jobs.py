@@ -1,15 +1,16 @@
 from __future__ import annotations
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 import csv
 import io
 from pathlib import Path
+import threading
 from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from backend.core.ingestion import ingest_to_structures
+from backend.core.ingestion import JobTerminationRequested, ingest_to_structures
 from backend.core.parser import CANONICAL_FIELDS
 from backend.core.storage_sqlite import (
     create_job,
@@ -21,6 +22,7 @@ from backend.core.storage_sqlite import (
     update_job_completed,
     update_job_failed,
     update_job_processing_started,
+    update_job_terminated,
 )
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -30,6 +32,8 @@ DEFAULT_CONFIG_PATH = Path("config") / "sources.yaml"
 UPLOAD_DIR = Path("data") / "uploads"
 
 EXECUTOR = ThreadPoolExecutor(max_workers=4)
+JOB_CANCEL_EVENTS: dict[str, threading.Event] = {}
+JOB_FUTURES: dict[str, Future[Any]] = {}
 
 
 def _input_extension(input_format: str) -> str:
@@ -42,12 +46,17 @@ def _input_extension(input_format: str) -> str:
 
 def _process_job(job_id: str, *, input_path: Path, input_format: str) -> None:
     try:
+        cancel_event = JOB_CANCEL_EVENTS.setdefault(job_id, threading.Event())
         leads, rejected, summary = ingest_to_structures(
             input_path=input_path,
             input_format=input_format,
             config_path=DEFAULT_CONFIG_PATH,
+            should_stop=cancel_event.is_set,
         )
 
+        if cancel_event.is_set():
+            update_job_terminated(DB_PATH, job_id=job_id)
+            return
         insert_leads(DB_PATH, job_id=job_id, leads=leads)
         update_job_completed(
             DB_PATH,
@@ -55,6 +64,8 @@ def _process_job(job_id: str, *, input_path: Path, input_format: str) -> None:
             counts=summary["counts"],
             rejected_rows=rejected,
         )
+    except JobTerminationRequested:
+        update_job_terminated(DB_PATH, job_id=job_id)
     except Exception as exc:  # noqa: BLE001
         # Keep the error message human-readable for the dashboard.
         try:
@@ -66,6 +77,9 @@ def _process_job(job_id: str, *, input_path: Path, input_format: str) -> None:
             pass
         update_job_failed(DB_PATH, job_id=job_id, error=f"{exc}")
         # Avoid printing from library code; logger.exception (above) captures details.
+    finally:
+        JOB_FUTURES.pop(job_id, None)
+        JOB_CANCEL_EVENTS.pop(job_id, None)
 
 
 @router.post("")
@@ -92,12 +106,13 @@ def submit_job(
     )
     update_job_processing_started(DB_PATH, job_id=job_id)
 
-    EXECUTOR.submit(
+    future = EXECUTOR.submit(
         _process_job,
         job_id,
         input_path=input_path,
         input_format=normalized_format,
     )
+    JOB_FUTURES[job_id] = future
 
     return {"job_id": job_id, "status": "processing"}
 
@@ -137,6 +152,30 @@ def poll_job(job_id: str) -> dict[str, Any]:
     }
 
 
+@router.post("/{job_id}/terminate")
+def terminate_job(job_id: str) -> dict[str, Any]:
+    job = get_job(DB_PATH, job_id=job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+
+    status = str(job.get("status") or "")
+    if status in {"completed", "failed", "terminated"}:
+        raise HTTPException(status_code=409, detail=f"job already {status}")
+
+    cancel_event = JOB_CANCEL_EVENTS.get(job_id)
+    if cancel_event is None:
+        cancel_event = threading.Event()
+        JOB_CANCEL_EVENTS[job_id] = cancel_event
+    cancel_event.set()
+
+    future = JOB_FUTURES.get(job_id)
+    if future is not None:
+        future.cancel()
+
+    update_job_terminated(DB_PATH, job_id=job_id)
+    return {"job_id": job_id, "status": "terminated"}
+
+
 @router.get("/{job_id}/results")
 def get_results(job_id: str):
     job = get_job(DB_PATH, job_id=job_id)
@@ -145,9 +184,9 @@ def get_results(job_id: str):
 
     status = job["status"]
     if status != "completed":
-        if status == "failed":
+        if status in {"failed", "terminated"}:
             return JSONResponse(
-                status_code=500,
+                status_code=409,
                 content={
                     "job_id": job_id,
                     "status": status,

@@ -12,6 +12,7 @@ from backend.core.storage_sqlite import (
     update_job_completed,
     update_job_failed,
     update_job_processing_started,
+    update_job_terminated,
 )
 
 
@@ -67,6 +68,18 @@ class TestSqliteStorage(unittest.TestCase):
             self.assertIsNotNone(job)
             self.assertEqual(job["status"], "failed")
             self.assertEqual(job["error"], "boom")
+
+    def test_job_terminated_sets_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "propintel.sqlite"
+            init_db(db_path)
+            create_job(db_path, job_id="job-3", input_format="csv", status="uploaded")
+            update_job_processing_started(db_path, job_id="job-3")
+            update_job_terminated(db_path, job_id="job-3")
+            job = get_job(db_path, job_id="job-3")
+            self.assertIsNotNone(job)
+            self.assertEqual(job["status"], "terminated")
+            self.assertEqual(job["error"], "terminated_by_user")
 
     def test_list_jobs_pagination_and_status_filter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

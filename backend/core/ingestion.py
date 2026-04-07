@@ -4,7 +4,7 @@ import csv
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from backend.core.deduplicator import deduplicate
 from backend.core.logging_utils import get_logger
@@ -24,6 +24,10 @@ from backend.services.verifier import verify_lead
 logger = get_logger(__name__)
 
 
+class JobTerminationRequested(RuntimeError):
+    """Raised when an external stop signal asks ingestion to halt."""
+
+
 def _load_sources_config(config_path: str | Path) -> dict[str, Any]:
     import yaml
 
@@ -41,6 +45,7 @@ def ingest_to_structures_with_sources_config(
     input_path: str | Path,
     input_format: str,
     sources_cfg: dict[str, Any],
+    should_stop: Callable[[], bool] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     """
     Core ingestion for the API layer.
@@ -53,6 +58,10 @@ def ingest_to_structures_with_sources_config(
     input_path = Path(input_path)
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    def _check_stop() -> None:
+        if should_stop is not None and should_stop():
+            raise JobTerminationRequested("job_termination_requested")
 
     input_mapping_cfg = (sources_cfg.get("input") or {}) if isinstance(sources_cfg, dict) else {}
 
@@ -72,6 +81,7 @@ def ingest_to_structures_with_sources_config(
 
     enriched_leads: list[dict[str, Any]] = []
     for lead in deduped_leads:
+        _check_stop()
         try:
             enriched_leads.append(enrich_lead(lead, website_cfg))
         except Exception as exc:  # noqa: BLE001
@@ -97,6 +107,7 @@ def ingest_to_structures_with_sources_config(
     if google_enabled:
         google_enriched_leads = []
         for lead in enriched_leads:
+            _check_stop()
             google_attempted += 1
             try:
                 updated = enrich_lead_from_google_maps(lead, google_maps_cfg)
@@ -119,6 +130,7 @@ def ingest_to_structures_with_sources_config(
 
     resolved_leads: list[dict[str, Any]] = []
     for idx, base_lead in enumerate(deduped_leads):
+        _check_stop()
         website_stage = enriched_leads[idx] if idx < len(enriched_leads) else dict(base_lead)
         current_stage = (
             google_enriched_leads[idx] if idx < len(google_enriched_leads) else dict(website_stage)
@@ -270,6 +282,7 @@ def ingest_to_structures(
     input_path: str | Path,
     input_format: str,
     config_path: str | Path,
+    should_stop: Callable[[], bool] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
     config_path = Path(config_path)
     if not config_path.exists():
@@ -280,6 +293,7 @@ def ingest_to_structures(
         input_path=input_path,
         input_format=input_format,
         sources_cfg=sources_cfg,
+        should_stop=should_stop,
     )
 
 
@@ -326,6 +340,7 @@ def run_ingestion_with_sources_config(
         input_path=input_path,
         input_format=input_format,
         sources_cfg=sources_cfg,
+        should_stop=None,
     )
 
     out_dir = output_summary_path.parent

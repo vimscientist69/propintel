@@ -22,6 +22,7 @@ export function App() {
   const [jobsOffset, setJobsOffset] = useState(0);
   const [jobsStatus, setJobsStatus] = useState("");
   const [activeJobId, setActiveJobId] = useState("");
+  const [activeJobStatus, setActiveJobStatus] = useState("");
   const [activeJobMeta, setActiveJobMeta] = useState("Select a job to load details.");
   const [rejectedRows, setRejectedRows] = useState([]);
   const [leads, setLeads] = useState([]);
@@ -49,6 +50,7 @@ export function App() {
       try {
         const status = await api(`/jobs/${activeJobId}`);
         if (cancelled) return;
+        setActiveJobStatus(status.status || "");
         setActiveJobMeta(`status=${status.status} error=${status.error || "none"}`);
         if (status.status === "processing" || status.status === "uploaded") {
           timeoutId = setTimeout(poll, 2500);
@@ -105,6 +107,7 @@ export function App() {
       const payload = await api("/jobs", { method: "POST", body: formData });
       setUploadStatus(`Job ${payload.job_id} started`);
       setActiveJobId(payload.job_id);
+      setActiveJobStatus(payload.status || "processing");
       setJobsOffset(0);
       await loadJobs();
     } catch (err) {
@@ -136,10 +139,24 @@ export function App() {
   const recentJobs = jobs.slice(0, 6);
   const activeJob = jobs.find((j) => j.job_id === activeJobId);
   const statusTone = activeJob?.status || "idle";
+  const canTerminate = activeJobId && (activeJobStatus === "processing" || activeJobStatus === "uploaded");
 
   const openExport = (format) => {
     if (!activeJobId) return;
     window.open(`${API_BASE}/jobs/${activeJobId}/export?format=${format}`, "_blank");
+  };
+
+  const terminateActiveJob = async () => {
+    if (!activeJobId) return;
+    try {
+      const payload = await api(`/jobs/${activeJobId}/terminate`, { method: "POST" });
+      setActiveJobStatus(payload.status || "terminated");
+      setActiveJobMeta("status=terminated error=terminated_by_user");
+      setUploadStatus(`Job ${activeJobId} terminated`);
+      await loadJobs();
+    } catch (err) {
+      setUploadStatus(`Terminate failed: ${err.message}`);
+    }
   };
 
   return (
@@ -211,6 +228,9 @@ export function App() {
               <div className="actions-row">
                 <button type="submit" disabled={isSubmitting}>
                   {isSubmitting ? "Running..." : "Run job"}
+                </button>
+                <button type="button" className="ghost" disabled={!canTerminate} onClick={terminateActiveJob}>
+                  Stop job
                 </button>
                 <button type="button" className="ghost" onClick={loadJobs}>
                   Refresh jobs

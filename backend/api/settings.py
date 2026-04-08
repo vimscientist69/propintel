@@ -10,6 +10,7 @@ from backend.core.config_schema import SourcesConfigValidationError, validate_so
 from backend.core.ingestion import _load_sources_config
 from backend.core.storage_sqlite import (
     activate_settings_profile,
+    delete_settings_profile,
     get_active_settings_profile,
     init_db,
     list_settings_profiles,
@@ -79,3 +80,11 @@ def activate_settings(body: ActivatePayload) -> dict[str, Any]:
     if not ok:
         raise HTTPException(status_code=404, detail="settings profile not found")
     return {"ok": True, "name": body.name}
+
+
+@router.delete("/{name}")
+def delete_settings(name: str) -> dict[str, Any]:
+    ok = delete_settings_profile(DB_PATH, name=name)
+    if not ok:
+        raise HTTPException(status_code=404, detail="settings profile not found")
+    return {"ok": True, "name": name}

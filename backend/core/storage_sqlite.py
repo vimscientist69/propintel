@@ -468,3 +468,26 @@ def activate_settings_profile(db_path: str | Path, *, name: str) -> bool:
         finally:
             conn.close()
 
+
+def delete_settings_profile(db_path: str | Path, *, name: str) -> bool:
+    db_path = Path(db_path)
+    with _DB_LOCK:
+        if not db_path.exists():
+            return False
+        conn = _connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT name FROM settings_profiles WHERE name = ?",
+                (name,),
+            ).fetchone()
+            if row is None:
+                return False
+            conn.execute(
+                "DELETE FROM settings_profiles WHERE name = ?",
+                (name,),
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
+

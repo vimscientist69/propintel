@@ -5,6 +5,7 @@ from pathlib import Path
 from backend.core.storage_sqlite import (
     activate_settings_profile,
     create_job,
+    delete_settings_profile,
     get_active_settings_profile,
     get_job,
     get_leads,
@@ -145,6 +146,9 @@ class TestSqliteStorage(unittest.TestCase):
             active2 = get_active_settings_profile(db_path)
             self.assertIsNotNone(active2)
             self.assertEqual(active2["name"], "profile-b")
+            self.assertTrue(delete_settings_profile(db_path, name="profile-a"))
+            profiles_after = list_settings_profiles(db_path)
+            self.assertEqual(len(profiles_after), 1)
 
 
 if __name__ == "__main__":

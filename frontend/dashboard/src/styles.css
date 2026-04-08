@@ -285,6 +285,11 @@ button:disabled {
   background: rgba(19, 28, 63, 0.7);
 }
 
+.danger {
+  background: linear-gradient(180deg, #d94f73, #a53a59);
+  border-color: rgba(255, 130, 160, 0.65);
+}
+
 .muted {
   color: #8ea4e8;
   font-size: 13px;
@@ -416,6 +421,34 @@ thead th {
 
 .rejected {
   margin-top: 12px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 18, 0.7);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+}
+
+.modal-card {
+  width: min(460px, calc(100vw - 32px));
+  border: 1px solid rgba(116, 142, 240, 0.38);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(15, 25, 57, 0.95), rgba(8, 13, 34, 0.98));
+  box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5);
+  padding: 18px;
+}
+
+.modal-card h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.modal-card p {
+  margin: 0;
+  color: #9fb3ef;
 }
 
 pre {

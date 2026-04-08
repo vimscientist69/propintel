@@ -41,6 +41,7 @@ export function App() {
   const [settingsPayloadText, setSettingsPayloadText] = useState("{}");
   const [settingsStatus, setSettingsStatus] = useState("");
   const [settingsProfiles, setSettingsProfiles] = useState([]);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
   const [analyticsRows, setAnalyticsRows] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
@@ -281,6 +282,18 @@ export function App() {
       await loadSettings();
     } catch (err) {
       setSettingsStatus(`Activate failed: ${err.message}`);
+    }
+  };
+
+  const deleteProfile = async () => {
+    if (!deleteConfirmName) return;
+    try {
+      await api(`/settings/${encodeURIComponent(deleteConfirmName)}`, { method: "DELETE" });
+      setSettingsStatus(`Deleted profile: ${deleteConfirmName}`);
+      setDeleteConfirmName("");
+      await loadSettings();
+    } catch (err) {
+      setSettingsStatus(`Delete failed: ${err.message}`);
     }
   };
 
@@ -757,6 +770,14 @@ export function App() {
                           >
                             Activate
                           </button>
+                          <button
+                            type="button"
+                            className="ghost danger"
+                            onClick={() => setDeleteConfirmName(profile.name)}
+                            style={{ marginLeft: "8px" }}
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -764,6 +785,25 @@ export function App() {
                 </table>
               </div>
             </details>
+            {deleteConfirmName && (
+              <div className="modal-overlay" role="dialog" aria-modal="true">
+                <div className="modal-card">
+                  <h3>Delete settings profile?</h3>
+                  <p>
+                    This will permanently remove <span className="mono">{deleteConfirmName}</span>.
+                    This action cannot be undone.
+                  </p>
+                  <div className="actions-row">
+                    <button type="button" className="ghost" onClick={() => setDeleteConfirmName("")}>
+                      Cancel
+                    </button>
+                    <button type="button" className="danger" onClick={deleteProfile}>
+                      Delete profile
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </section>
         )}
       </main>

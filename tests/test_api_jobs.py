@@ -113,6 +113,8 @@ class TestApiJobs(unittest.TestCase):
         get_settings = self.client.get("/settings")
         self.assertEqual(get_settings.status_code, 200)
         self.assertIn("active", get_settings.json())
+        delete = self.client.delete("/settings/profile-test")
+        self.assertEqual(delete.status_code, 200)
 
 if __name__ == "__main__":
     unittest.main()

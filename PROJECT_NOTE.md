@@ -5,7 +5,7 @@
 
 **Edge Cases**:
 - [x] very big input files (OOM, no saves - risky if crashes or an api stops working)
-- [ ] google maps or other apis rate limiting handling
+- [x] google maps or other apis rate limiting handling
 
 ---
 
@@ -330,7 +330,7 @@ The final project must include:
 
 ## **Week 4**
 
-- [ ] dashboard
+- [x] dashboard
 - [ ] deployment
 - [ ] polish + documentation
 

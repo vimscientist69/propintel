@@ -775,6 +775,52 @@ pre {
   }
 }
 
+@media (min-width: 981px) and (max-width: 1400px) {
+  .explorer-table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    font-size: 13px;
+  }
+
+  .explorer-table thead {
+    display: none;
+  }
+
+  .explorer-table tbody,
+  .explorer-table tr,
+  .explorer-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .explorer-table tr {
+    border: 1px solid rgba(102, 128, 222, 0.3);
+    border-radius: 12px;
+    background: rgba(10, 18, 45, 0.75);
+    padding: 8px 10px;
+  }
+
+  .explorer-table td {
+    border-bottom: none;
+    padding: 6px 4px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .explorer-table td::before {
+    content: attr(data-label);
+    display: inline-block;
+    min-width: 76px;
+    margin-right: 10px;
+    color: #8fa5e8;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
 @media (max-width: 725px) {
   .latest-listings-table {
     min-width: 0;

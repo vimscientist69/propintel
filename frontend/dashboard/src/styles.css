@@ -438,6 +438,48 @@ thead th {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+.latest-listings-table {
+  table-layout: fixed;
+}
+
+.latest-listings-table th,
+.latest-listings-table td {
+  padding: 9px 8px;
+}
+
+.latest-listings-table th:nth-child(1),
+.latest-listings-table td:nth-child(1) { width: 20%; }
+
+.latest-listings-table th:nth-child(2),
+.latest-listings-table td:nth-child(2) { width: 10%; }
+
+.latest-listings-table th:nth-child(3),
+.latest-listings-table td:nth-child(3) { width: 18%; }
+
+.latest-listings-table th:nth-child(4),
+.latest-listings-table td:nth-child(4) { width: 17%; }
+
+.latest-listings-table th:nth-child(5),
+.latest-listings-table td:nth-child(5) { width: 10%; }
+
+.latest-listings-table th:nth-child(6),
+.latest-listings-table td:nth-child(6) { width: 7%; }
+
+.latest-listings-table th:nth-child(7),
+.latest-listings-table td:nth-child(7) { width: 18%; }
+
+.cell-wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.28;
+}
+
+.email-cell,
+.website-cell {
+  color: #adc0ff;
+}
 .empty-row {
   text-align: center;
   color: #9ab0ef;

@@ -288,26 +288,14 @@ def get_results(job_id: str):
         raise HTTPException(status_code=404, detail="job not found")
 
     status = job["status"]
-    if status != "completed":
-        if status in {"failed", "terminated"}:
-            return JSONResponse(
-                status_code=409,
-                content={
-                    "job_id": job_id,
-                    "status": status,
-                    "error": job["error"],
-                },
-            )
-        return JSONResponse(
-            status_code=202,
-            content={
-                "job_id": job_id,
-                "status": status,
-            },
-        )
-
     leads = get_leads(DB_PATH, job_id=job_id)
-    return {"job_id": job_id, "status": "completed", "leads": leads}
+    return {
+        "job_id": job_id,
+        "status": status,
+        "leads": leads,
+        "partial": status != "completed",
+        "error": job.get("error"),
+    }
 
 
 @router.get("/{job_id}/batches")

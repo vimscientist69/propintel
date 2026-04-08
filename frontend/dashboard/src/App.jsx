@@ -90,6 +90,10 @@ export function App() {
           `status=${status.status} batches_started=${batchProgress} batches_completed=${status.batches_completed || 0}/${status.batches_total || 0} rows=${status.rows_processed || 0}/${status.rows_total || 0} error=${status.error || "none"}`,
         );
         if (status.status === "processing" || status.status === "uploaded") {
+          await loadActiveJobDetails(activeJobId);
+          if (explorerJobId && explorerJobId === activeJobId) {
+            await loadExplorerRows();
+          }
           await loadJobs();
           timeoutId = setTimeout(poll, 2500);
           return;
@@ -146,12 +150,12 @@ export function App() {
   }
 
   async function loadActiveJobDetails(jobId) {
-    const [results, rejected] = await Promise.all([
-      api(`/jobs/${jobId}/results`),
-      api(`/jobs/${jobId}/rejected`),
-    ]);
+    const results = await api(`/jobs/${jobId}/results`);
     setLeads(results.leads || []);
-    setRejectedRows(rejected.rejected_rows || []);
+    if (results.status === "completed" || results.status === "failed" || results.status === "terminated") {
+      const rejected = await api(`/jobs/${jobId}/rejected`);
+      setRejectedRows(rejected.rejected_rows || []);
+    }
   }
 
   async function onSubmit(event) {
@@ -237,11 +241,7 @@ export function App() {
     if (!explorerJobId) return;
     try {
       const payload = await api(`/jobs/${explorerJobId}/results`);
-      if (payload.status === "completed") {
-        setExplorerRows(payload.leads || []);
-      } else {
-        setExplorerRows([]);
-      }
+      setExplorerRows(payload.leads || []);
     } catch {
       setExplorerRows([]);
     }
@@ -550,7 +550,7 @@ export function App() {
           </div>
 
           <div className="table-wrap">
-            <table>
+            <table className="latest-listings-table">
               <thead>
                 <tr>
                   <th>Listing</th>
@@ -578,11 +578,11 @@ export function App() {
                         {lead.contact_quality || "unknown"}
                       </span>
                     </td>
-                    <td>{lead.website || ""}</td>
-                    <td>{lead.email || ""}</td>
-                    <td>{lead.phone || ""}</td>
+                    <td className="cell-wrap website-cell">{lead.website || ""}</td>
+                    <td className="cell-wrap email-cell">{lead.email || ""}</td>
+                    <td className="cell-wrap phone-cell">{lead.phone || ""}</td>
                     <td>{lead.lead_score ?? ""}</td>
-                    <td>{lead.lead_reason || ""}</td>
+                    <td className="cell-wrap reason-cell">{lead.lead_reason || ""}</td>
                   </tr>
                 ))}
               </tbody>

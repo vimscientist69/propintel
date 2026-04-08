@@ -14,6 +14,7 @@ from backend.core.storage_sqlite import (
     insert_leads,
     update_job_completed,
     update_job_failed,
+    update_job_processing_started,
 )
 
 if TestClient is not None:
@@ -90,6 +91,21 @@ class TestApiJobs(unittest.TestCase):
         create_job(self.db_path, job_id="j4", input_format="csv", status="uploaded")
         r = self.client.get("/jobs/j4/export", params={"format": "json"})
         self.assertEqual(r.status_code, 409)
+
+    def test_results_returns_partial_rows_while_processing(self) -> None:
+        create_job(self.db_path, job_id="j4p", input_format="csv", status="uploaded")
+        update_job_processing_started(self.db_path, job_id="j4p")
+        insert_leads(
+            self.db_path,
+            job_id="j4p",
+            leads=[{"company_name": "Partial Co", "lead_score": 80}],
+        )
+        r = self.client.get("/jobs/j4p/results")
+        self.assertEqual(r.status_code, 200)
+        payload = r.json()
+        self.assertEqual(payload["status"], "processing")
+        self.assertTrue(payload["partial"])
+        self.assertEqual(len(payload["leads"]), 1)
 
     def test_terminate_job(self) -> None:
         create_job(self.db_path, job_id="j5", input_format="csv", status="uploaded")

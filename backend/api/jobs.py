@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse, Response
 
 from backend.core.ingestion import JobTerminationRequested, ingest_to_structures
 from backend.core.parser import CANONICAL_FIELDS
+from backend.core.config_schema import validate_sources_config
 from backend.core.storage_sqlite import (
     create_job,
     get_active_settings_profile,
@@ -55,7 +56,7 @@ def _process_job(job_id: str, *, input_path: Path, input_format: str) -> None:
             leads, rejected, summary = ingest_to_structures_with_sources_config(
                 input_path=input_path,
                 input_format=input_format,
-                sources_cfg=active_profile["payload"],
+                sources_cfg=validate_sources_config(active_profile["payload"]),
                 should_stop=cancel_event.is_set,
             )
         else:

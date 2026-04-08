@@ -98,6 +98,9 @@ class TestApiJobs(unittest.TestCase):
         validate = self.client.post("/settings/validate", json={"website": {"enabled": True}})
         self.assertEqual(validate.status_code, 200)
         self.assertTrue(validate.json()["ok"])
+        invalid_validate = self.client.post("/settings/validate", json={"foo": {}})
+        self.assertEqual(invalid_validate.status_code, 200)
+        self.assertFalse(invalid_validate.json()["ok"])
         save = self.client.put(
             "/settings",
             json={

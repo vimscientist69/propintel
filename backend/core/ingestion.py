@@ -10,6 +10,7 @@ from backend.core.deduplicator import deduplicate
 from backend.core.logging_utils import get_logger
 from backend.core.normalizer import normalize_lead
 from backend.core.parser import CANONICAL_FIELDS, load_input
+from backend.core.config_schema import validate_sources_config
 from backend.services.conflict_resolver import (
     TRACKED_FIELDS,
     make_candidate,
@@ -36,8 +37,10 @@ def _load_sources_config(config_path: str | Path) -> dict[str, Any]:
 
     # Support both `{sources: {...}}` and `{...}` shapes for flexibility.
     if isinstance(payload, dict) and "sources" in payload and isinstance(payload["sources"], dict):
-        return payload["sources"]
-    return payload if isinstance(payload, dict) else {}
+        return validate_sources_config(payload["sources"])
+    if isinstance(payload, dict):
+        return validate_sources_config(payload)
+    return validate_sources_config({})
 
 
 def ingest_to_structures_with_sources_config(
@@ -58,6 +61,7 @@ def ingest_to_structures_with_sources_config(
     input_path = Path(input_path)
     if not input_path.exists():
         raise FileNotFoundError(f"Input file not found: {input_path}")
+    sources_cfg = validate_sources_config(sources_cfg)
 
     def _check_stop() -> None:
         if should_stop is not None and should_stop():

@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from backend.core.config_schema import SourcesConfigValidationError, validate_sources_config
 from backend.core.ingestion import _load_sources_config
 from backend.core.storage_sqlite import (
     activate_settings_profile,
@@ -32,18 +33,11 @@ class ActivatePayload(BaseModel):
 
 
 def _validate_payload(payload: dict[str, Any]) -> list[str]:
-    errors: list[str] = []
-    if not isinstance(payload, dict):
-        return ["settings payload must be an object"]
-    for key in ("input", "website", "google_maps", "scoring"):
-        if key in payload and not isinstance(payload[key], dict):
-            errors.append(f"{key} must be an object")
-    scoring = payload.get("scoring")
-    if isinstance(scoring, dict):
-        weights = scoring.get("weights")
-        if weights is not None and not isinstance(weights, dict):
-            errors.append("scoring.weights must be an object")
-    return errors
+    try:
+        validate_sources_config(payload)
+        return []
+    except SourcesConfigValidationError as exc:
+        return [str(exc)]
 
 
 @router.get("")

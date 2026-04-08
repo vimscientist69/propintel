@@ -79,7 +79,20 @@ export function App() {
           return;
         }
         if (status.status === "completed") {
-          await loadActiveJobDetails(activeJobId);
+          await Promise.all([loadActiveJobDetails(activeJobId), loadJobs()]);
+          if (explorerJobId && explorerJobId === activeJobId) {
+            await loadExplorerRows();
+          }
+          if (activeTab === "analytics") {
+            await loadAnalyticsRows();
+          }
+          return;
+        }
+        if (status.status === "failed" || status.status === "terminated") {
+          await loadJobs();
+          if (activeTab === "analytics") {
+            await loadAnalyticsRows();
+          }
         }
       } catch (err) {
         if (!cancelled) {

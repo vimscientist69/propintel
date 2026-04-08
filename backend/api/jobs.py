@@ -14,6 +14,7 @@ from backend.core.ingestion import JobTerminationRequested, ingest_to_structures
 from backend.core.parser import CANONICAL_FIELDS
 from backend.core.storage_sqlite import (
     create_job,
+    get_active_settings_profile,
     get_job,
     get_leads,
     init_db,
@@ -47,12 +48,23 @@ def _input_extension(input_format: str) -> str:
 def _process_job(job_id: str, *, input_path: Path, input_format: str) -> None:
     try:
         cancel_event = JOB_CANCEL_EVENTS.setdefault(job_id, threading.Event())
-        leads, rejected, summary = ingest_to_structures(
-            input_path=input_path,
-            input_format=input_format,
-            config_path=DEFAULT_CONFIG_PATH,
-            should_stop=cancel_event.is_set,
-        )
+        active_profile = get_active_settings_profile(DB_PATH)
+        if active_profile and isinstance(active_profile.get("payload"), dict):
+            from backend.core.ingestion import ingest_to_structures_with_sources_config
+
+            leads, rejected, summary = ingest_to_structures_with_sources_config(
+                input_path=input_path,
+                input_format=input_format,
+                sources_cfg=active_profile["payload"],
+                should_stop=cancel_event.is_set,
+            )
+        else:
+            leads, rejected, summary = ingest_to_structures(
+                input_path=input_path,
+                input_format=input_format,
+                config_path=DEFAULT_CONFIG_PATH,
+                should_stop=cancel_event.is_set,
+            )
 
         if cancel_event.is_set():
             update_job_terminated(DB_PATH, job_id=job_id)

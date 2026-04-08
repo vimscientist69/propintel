@@ -15,8 +15,8 @@ async function api(path, options = {}) {
 }
 
 const JOB_LIMIT = 20;
-
 export function App() {
+  const [activeTab, setActiveTab] = useState("control");
   const [jobs, setJobs] = useState([]);
   const [jobsTotal, setJobsTotal] = useState(0);
   const [jobsOffset, setJobsOffset] = useState(0);
@@ -29,15 +29,36 @@ export function App() {
   const [uploadStatus, setUploadStatus] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFileName, setSelectedFileName] = useState("No file selected");
+  const [isLoadingJobs, setIsLoadingJobs] = useState(false);
 
   const [minScore, setMinScore] = useState(0);
   const [qualityFilter, setQualityFilter] = useState("");
   const [chatbotFilter, setChatbotFilter] = useState("");
   const [freshnessFilter, setFreshnessFilter] = useState("");
+  const [explorerJobId, setExplorerJobId] = useState("");
+  const [explorerRows, setExplorerRows] = useState([]);
+  const [settingsName, setSettingsName] = useState("custom");
+  const [settingsPayloadText, setSettingsPayloadText] = useState("{}");
+  const [settingsStatus, setSettingsStatus] = useState("");
+  const [settingsProfiles, setSettingsProfiles] = useState([]);
+  const [analyticsRows, setAnalyticsRows] = useState([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
     loadJobs();
   }, [jobsOffset, jobsStatus]);
+
+  useEffect(() => {
+    if (activeTab === "settings") {
+      loadSettings();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "analytics") {
+      loadAnalyticsRows();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (!activeJobId) {
@@ -75,6 +96,7 @@ export function App() {
 
   async function loadJobs() {
     try {
+      setIsLoadingJobs(true);
       const query = new URLSearchParams({
         limit: String(JOB_LIMIT),
         offset: String(jobsOffset),
@@ -83,8 +105,13 @@ export function App() {
       const payload = await api(`/jobs?${query.toString()}`);
       setJobs(payload.items || []);
       setJobsTotal(Number(payload.total || 0));
+      if (!explorerJobId && payload.items && payload.items.length > 0) {
+        setExplorerJobId(payload.items[0].job_id);
+      }
     } catch (err) {
       setUploadStatus(`Failed to load jobs: ${err.message}`);
+    } finally {
+      setIsLoadingJobs(false);
     }
   }
 
@@ -159,6 +186,90 @@ export function App() {
     }
   };
 
+  const loadExplorerRows = async () => {
+    if (!explorerJobId) return;
+    try {
+      const payload = await api(`/jobs/${explorerJobId}/results`);
+      if (payload.status === "completed") {
+        setExplorerRows(payload.leads || []);
+      } else {
+        setExplorerRows([]);
+      }
+    } catch {
+      setExplorerRows([]);
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const payload = await api("/settings");
+      const active = payload.active || { name: "custom", payload: {} };
+      setSettingsProfiles(payload.profiles || []);
+      setSettingsName(String(active.name || "custom"));
+      setSettingsPayloadText(JSON.stringify(active.payload || {}, null, 2));
+      setSettingsStatus("");
+    } catch (err) {
+      setSettingsStatus(`Failed loading settings: ${err.message}`);
+    }
+  };
+
+  const loadAnalyticsRows = async () => {
+    try {
+      setAnalyticsLoading(true);
+      const jobsPayload = await api(`/jobs?limit=10&offset=0&status=completed`);
+      const completedIds = (jobsPayload.items || []).map((item) => item.job_id).filter(Boolean);
+      if (completedIds.length === 0) {
+        setAnalyticsRows([]);
+        return;
+      }
+      const perJobRows = await Promise.all(
+        completedIds.map(async (jobId) => {
+          try {
+            const payload = await api(`/jobs/${jobId}/results`);
+            return payload.status === "completed" ? payload.leads || [] : [];
+          } catch {
+            return [];
+          }
+        }),
+      );
+      setAnalyticsRows(perJobRows.flat());
+    } catch (err) {
+      setAnalyticsRows([]);
+      setUploadStatus(`Analytics load failed: ${err.message}`);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  };
+
+  const validateSettings = async () => {
+    try {
+      const parsed = JSON.parse(settingsPayloadText);
+      const payload = await api("/settings/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      setSettingsStatus(payload.ok ? "Settings payload is valid." : `Validation failed: ${(payload.errors || []).join(", ")}`);
+    } catch (err) {
+      setSettingsStatus(`Validation error: ${err.message}`);
+    }
+  };
+
+  const saveSettings = async () => {
+    try {
+      const parsed = JSON.parse(settingsPayloadText);
+      await api("/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: settingsName || "custom", payload: parsed, activate: true }),
+      });
+      setSettingsStatus("Settings saved and activated.");
+      await loadSettings();
+    } catch (err) {
+      setSettingsStatus(`Save failed: ${err.message}`);
+    }
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -170,11 +281,21 @@ export function App() {
           </div>
         </div>
         <nav className="nav">
-          <button className="nav-item active">Control Panel</button>
-          <button className="nav-item">Analytics</button>
-          <button className="nav-item">Job History</button>
-          <button className="nav-item">Data Explorer</button>
-          <button className="nav-item">Engine Settings</button>
+          <button className={`nav-item ${activeTab === "control" ? "active" : ""}`} onClick={() => setActiveTab("control")}>
+            Control Panel
+          </button>
+          <button className={`nav-item ${activeTab === "analytics" ? "active" : ""}`} onClick={() => setActiveTab("analytics")}>
+            Analytics
+          </button>
+          <button className={`nav-item ${activeTab === "history" ? "active" : ""}`} onClick={() => setActiveTab("history")}>
+            Job History
+          </button>
+          <button className={`nav-item ${activeTab === "explorer" ? "active" : ""}`} onClick={() => setActiveTab("explorer")}>
+            Data Explorer
+          </button>
+          <button className={`nav-item ${activeTab === "settings" ? "active" : ""}`} onClick={() => setActiveTab("settings")}>
+            Engine Settings
+          </button>
         </nav>
       </aside>
 
@@ -185,7 +306,7 @@ export function App() {
           <p>Configure job input, monitor progress, and inspect enriched lead results.</p>
         </header>
 
-        <section className="top-grid">
+        {activeTab === "control" && <section className="top-grid">
           <div className="panel">
             <div className="panel-head">
               <div>
@@ -292,9 +413,9 @@ export function App() {
               ))}
             </div>
           </div>
-        </section>
+        </section>}
 
-        <section className="panel">
+        {activeTab === "control" && <section className="panel">
           <div className="panel-head">
             <div>
               <h2>Latest Listings</h2>
@@ -393,7 +514,203 @@ export function App() {
             <summary>Rejected Rows</summary>
             <pre>{JSON.stringify(rejectedRows, null, 2)}</pre>
           </details>
-        </section>
+        </section>}
+
+        {activeTab === "analytics" && (
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Analytics</h2>
+                <p>Pipeline quality and lead outcome overview from completed jobs.</p>
+              </div>
+              <button type="button" className="ghost" onClick={loadAnalyticsRows}>
+                Refresh analytics
+              </button>
+            </div>
+            {analyticsLoading && <p className="muted">Loading analytics...</p>}
+            <div className="top-grid">
+              <div className="panel">
+                <h3>Total Jobs</h3>
+                <p className="mono">{jobsTotal}</p>
+              </div>
+              <div className="panel">
+                <h3>Completed Jobs</h3>
+                <p className="mono">{jobs.filter((j) => j.status === "completed").length}</p>
+              </div>
+              <div className="panel">
+                <h3>Average Lead Score</h3>
+                <p className="mono">
+                  {analyticsRows.length
+                    ? Math.round(
+                        analyticsRows.reduce((acc, row) => acc + Number(row.lead_score || 0), 0) /
+                          analyticsRows.length,
+                      )
+                    : 0}
+                </p>
+              </div>
+              <div className="panel">
+                <h3>Verified Contact Rate</h3>
+                <p className="mono">
+                  {analyticsRows.length
+                    ? `${Math.round(
+                        (analyticsRows.filter((row) => row.contact_quality === "verified").length /
+                          analyticsRows.length) *
+                          100,
+                      )}%`
+                    : "0%"}
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "history" && (
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Job History</h2>
+                <p>Audit and inspect all runs with status and run metadata.</p>
+              </div>
+              <button type="button" className="ghost" onClick={loadJobs}>
+                Refresh
+              </button>
+            </div>
+            {isLoadingJobs && <p className="muted">Loading jobs...</p>}
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Job ID</th>
+                    <th>Status</th>
+                    <th>Format</th>
+                    <th>Created</th>
+                    <th>Counts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {jobs.map((job) => (
+                    <tr key={job.job_id}>
+                      <td className="mono">{job.job_id}</td>
+                      <td><span className={`pill pill-${job.status}`}>{job.status}</span></td>
+                      <td>{job.input_format || "-"}</td>
+                      <td>{job.created_at || "-"}</td>
+                      <td>{job.counts ? JSON.stringify(job.counts) : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "explorer" && (
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Data Explorer</h2>
+                <p>Search and inspect lead rows for a selected job.</p>
+              </div>
+              <button type="button" className="ghost" onClick={loadExplorerRows}>
+                Load rows
+              </button>
+            </div>
+            <div className="filters">
+              <div className="field compact">
+                <label htmlFor="explorerJob">Job</label>
+                <select id="explorerJob" value={explorerJobId} onChange={(e) => setExplorerJobId(e.target.value)}>
+                  <option value="">select a job</option>
+                  {jobs.map((job) => (
+                    <option key={job.job_id} value={job.job_id}>
+                      {job.job_id.slice(0, 8)} ({job.status})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field compact">
+                <label htmlFor="minScoreExplorer">Min score</label>
+                <input
+                  id="minScoreExplorer"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={minScore}
+                  onChange={(e) => setMinScore(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Status</th>
+                    <th>Website</th>
+                    <th>Email</th>
+                    <th>Phone</th>
+                    <th>Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {explorerRows
+                    .filter((row) => Number(row.lead_score || 0) >= Number(minScore || 0))
+                    .map((row, idx) => (
+                      <tr key={`${row.company_name || "row"}-${idx}`}>
+                        <td>{row.company_name || ""}</td>
+                        <td><span className={`pill pill-${row.contact_quality || "unknown"}`}>{row.contact_quality || "unknown"}</span></td>
+                        <td>{row.website || ""}</td>
+                        <td>{row.email || ""}</td>
+                        <td>{row.phone || ""}</td>
+                        <td>{row.lead_score ?? ""}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
+        {activeTab === "settings" && (
+          <section className="panel">
+            <div className="panel-head">
+              <div>
+                <h2>Engine Settings</h2>
+                <p>Manage active enrichment/scoring profiles without editing YAML directly.</p>
+              </div>
+            </div>
+            <div className="filters">
+              <div className="field compact">
+                <label htmlFor="settingsName">Profile name</label>
+                <input
+                  id="settingsName"
+                  value={settingsName}
+                  onChange={(e) => setSettingsName(e.target.value)}
+                />
+              </div>
+              <button type="button" onClick={validateSettings}>Validate</button>
+              <button type="button" onClick={saveSettings}>Save + Activate</button>
+            </div>
+            <textarea
+              value={settingsPayloadText}
+              onChange={(e) => setSettingsPayloadText(e.target.value)}
+              rows={14}
+              style={{
+                width: "100%",
+                borderRadius: "10px",
+                border: "1px solid rgba(99,125,227,.5)",
+                background: "rgba(11,20,48,.92)",
+                color: "#dce7ff",
+                padding: "12px",
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                fontSize: "13px",
+              }}
+            />
+            <p className="muted">{settingsStatus}</p>
+            <details className="rejected">
+              <summary>Profiles</summary>
+              <pre>{JSON.stringify(settingsProfiles, null, 2)}</pre>
+            </details>
+          </section>
+        )}
       </main>
     </div>
   );

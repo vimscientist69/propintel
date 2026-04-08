@@ -3,12 +3,16 @@ import unittest
 from pathlib import Path
 
 from backend.core.storage_sqlite import (
+    activate_settings_profile,
     create_job,
+    get_active_settings_profile,
     get_job,
     get_leads,
     init_db,
     insert_leads,
+    list_settings_profiles,
     list_jobs,
+    upsert_settings_profile,
     update_job_completed,
     update_job_failed,
     update_job_processing_started,
@@ -114,6 +118,33 @@ class TestSqliteStorage(unittest.TestCase):
             self.assertEqual(len(failed_only), 1)
             self.assertEqual(failed_only[0]["job_id"], "job-2")
             self.assertEqual(failed_only[0]["error"], "timeout")
+
+    def test_settings_profiles_upsert_activate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "propintel.sqlite"
+            init_db(db_path)
+            upsert_settings_profile(
+                db_path,
+                name="profile-a",
+                payload={"website": {"enabled": True}},
+                activate=True,
+            )
+            active = get_active_settings_profile(db_path)
+            self.assertIsNotNone(active)
+            self.assertEqual(active["name"], "profile-a")
+
+            upsert_settings_profile(
+                db_path,
+                name="profile-b",
+                payload={"scoring": {"enabled": True}},
+                activate=False,
+            )
+            profiles = list_settings_profiles(db_path)
+            self.assertEqual(len(profiles), 2)
+            self.assertTrue(activate_settings_profile(db_path, name="profile-b"))
+            active2 = get_active_settings_profile(db_path)
+            self.assertIsNotNone(active2)
+            self.assertEqual(active2["name"], "profile-b")
 
 
 if __name__ == "__main__":

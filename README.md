@@ -149,6 +149,12 @@ Behavior:
 - If completed: HTTP `200` with `{ "job_id": "...", "status": "completed", "leads": [ ... ] }`
 - If failed/terminated: HTTP `409` with `{ "job_id": "...", "status": "failed|terminated", "error": "..." }`
 
+### Engine Settings
+- `GET /settings`
+- `POST /settings/validate`
+- `PUT /settings`
+- `POST /settings/activate`
+
 ## Notes
 
 Project scope and goals are defined in `PROJECT_NOTE.md`.

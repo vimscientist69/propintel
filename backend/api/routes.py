@@ -4,9 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.jobs import router as jobs_router
+from backend.api.settings import router as settings_router
 
 app = FastAPI(title="PropIntel API", version="0.1.0")
 app.include_router(jobs_router)
+app.include_router(settings_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[

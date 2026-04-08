@@ -53,6 +53,21 @@ def init_db(db_path: str | Path) -> None:
                 """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_leads_job_id ON leads(job_id);")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS settings_profiles (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    payload_json TEXT NOT NULL,
+                    is_active INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_settings_profiles_active ON settings_profiles(is_active);"
+            )
             conn.commit()
         finally:
             conn.close()
@@ -339,6 +354,117 @@ def get_leads(db_path: str | Path, *, job_id: str) -> list[dict[str, Any]]:
                 (job_id,),
             ).fetchall()
             return [json.loads(r["lead_json"]) for r in rows]
+        finally:
+            conn.close()
+
+
+def list_settings_profiles(db_path: str | Path) -> list[dict[str, Any]]:
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return []
+    with _DB_LOCK:
+        conn = _connect(db_path)
+        try:
+            rows = conn.execute(
+                """
+                SELECT name, payload_json, is_active, created_at, updated_at
+                FROM settings_profiles
+                ORDER BY datetime(updated_at) DESC, id DESC
+                """
+            ).fetchall()
+            return [
+                {
+                    "name": row["name"],
+                    "payload": json.loads(row["payload_json"]),
+                    "is_active": bool(row["is_active"]),
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                }
+                for row in rows
+            ]
+        finally:
+            conn.close()
+
+
+def get_active_settings_profile(db_path: str | Path) -> dict[str, Any] | None:
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return None
+    with _DB_LOCK:
+        conn = _connect(db_path)
+        try:
+            row = conn.execute(
+                """
+                SELECT name, payload_json, created_at, updated_at
+                FROM settings_profiles
+                WHERE is_active = 1
+                ORDER BY datetime(updated_at) DESC, id DESC
+                LIMIT 1
+                """
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "name": row["name"],
+                "payload": json.loads(row["payload_json"]),
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            }
+        finally:
+            conn.close()
+
+
+def upsert_settings_profile(
+    db_path: str | Path,
+    *,
+    name: str,
+    payload: dict[str, Any],
+    activate: bool = False,
+) -> None:
+    db_path = Path(db_path)
+    with _DB_LOCK:
+        init_db(db_path)
+        conn = _connect(db_path)
+        try:
+            now = _now_iso()
+            if activate:
+                conn.execute("UPDATE settings_profiles SET is_active = 0 WHERE is_active = 1")
+            conn.execute(
+                """
+                INSERT INTO settings_profiles (name, payload_json, is_active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(name) DO UPDATE SET
+                    payload_json = excluded.payload_json,
+                    is_active = CASE WHEN excluded.is_active = 1 THEN 1 ELSE settings_profiles.is_active END,
+                    updated_at = excluded.updated_at
+                """,
+                (name, json.dumps(payload, ensure_ascii=False), 1 if activate else 0, now, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def activate_settings_profile(db_path: str | Path, *, name: str) -> bool:
+    db_path = Path(db_path)
+    with _DB_LOCK:
+        if not db_path.exists():
+            return False
+        conn = _connect(db_path)
+        try:
+            row = conn.execute(
+                "SELECT name FROM settings_profiles WHERE name = ?",
+                (name,),
+            ).fetchone()
+            if row is None:
+                return False
+            conn.execute("UPDATE settings_profiles SET is_active = 0 WHERE is_active = 1")
+            conn.execute(
+                "UPDATE settings_profiles SET is_active = 1, updated_at = ? WHERE name = ?",
+                (_now_iso(), name),
+            )
+            conn.commit()
+            return True
         finally:
             conn.close()
 

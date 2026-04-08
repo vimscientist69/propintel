@@ -94,5 +94,22 @@ class TestApiJobs(unittest.TestCase):
         self.assertEqual(status.status_code, 200)
         self.assertEqual(status.json()["status"], "terminated")
 
+    def test_settings_endpoints(self) -> None:
+        validate = self.client.post("/settings/validate", json={"website": {"enabled": True}})
+        self.assertEqual(validate.status_code, 200)
+        self.assertTrue(validate.json()["ok"])
+        save = self.client.put(
+            "/settings",
+            json={
+                "name": "profile-test",
+                "payload": {"website": {"enabled": True}, "scoring": {"enabled": True, "weights": {}}},
+                "activate": True,
+            },
+        )
+        self.assertEqual(save.status_code, 200)
+        get_settings = self.client.get("/settings")
+        self.assertEqual(get_settings.status_code, 200)
+        self.assertIn("active", get_settings.json())
+
 if __name__ == "__main__":
     unittest.main()

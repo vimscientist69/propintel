@@ -7,7 +7,7 @@ class SourcesConfigValidationError(ValueError):
     """Raised when sources config shape/types do not match expected schema."""
 
 
-_TOP_LEVEL_KEYS = {"input", "website", "google_maps", "scoring"}
+_TOP_LEVEL_KEYS = {"input", "website", "google_maps", "scoring", "runtime"}
 _INPUT_KEYS = {"required_any", "schema_aliases", "defaults", "strict_contact_validation"}
 _INPUT_ALIAS_FIELDS = {"company_name", "agent_name", "website", "email", "phone", "location", "source"}
 _WEBSITE_KEYS = {
@@ -23,6 +23,7 @@ _WEBSITE_KEYS = {
 }
 _GOOGLE_KEYS = {"enabled", "timeout_seconds", "max_retries", "min_name_match_score", "region", "language"}
 _SCORING_KEYS = {"enabled", "base_score", "weights"}
+_RUNTIME_KEYS = {"batch_size", "stop_on_batch_error"}
 _WEIGHTS_KEYS = {
     "contact_quality_verified",
     "contact_quality_likely",
@@ -146,5 +147,15 @@ def validate_sources_config(sources_cfg: dict[str, Any]) -> dict[str, Any]:
             _check_unknown_keys(weights, _WEIGHTS_KEYS, "scoring.weights")
             for k, v in weights.items():
                 _ensure_number(v, f"scoring.weights.{k}")
+
+    if "runtime" in cfg:
+        r_cfg = _ensure_obj(cfg["runtime"], "runtime")
+        _check_unknown_keys(r_cfg, _RUNTIME_KEYS, "runtime")
+        if "batch_size" in r_cfg:
+            _ensure_int(r_cfg["batch_size"], "runtime.batch_size")
+            if int(r_cfg["batch_size"]) < 10 or int(r_cfg["batch_size"]) > 2000:
+                raise _err("runtime.batch_size must be between 10 and 2000")
+        if "stop_on_batch_error" in r_cfg:
+            _ensure_bool(r_cfg["stop_on_batch_error"], "runtime.stop_on_batch_error")
 
     return cfg

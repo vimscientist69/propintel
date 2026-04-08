@@ -79,7 +79,10 @@ export function App() {
         const status = await api(`/jobs/${activeJobId}`);
         if (cancelled) return;
         setActiveJobStatus(status.status || "");
-        setActiveJobMeta(`status=${status.status} error=${status.error || "none"}`);
+        const batchProgress = `${status.batches_completed || 0}/${status.batches_total || 0}`;
+        setActiveJobMeta(
+          `status=${status.status} batches=${batchProgress} rows=${status.rows_processed || 0}/${status.rows_total || 0} error=${status.error || "none"}`,
+        );
         if (status.status === "processing" || status.status === "uploaded") {
           timeoutId = setTimeout(poll, 2500);
           return;
@@ -187,6 +190,7 @@ export function App() {
   const activeJob = jobs.find((j) => j.job_id === activeJobId);
   const statusTone = activeJob?.status || "idle";
   const canTerminate = activeJobId && (activeJobStatus === "processing" || activeJobStatus === "uploaded");
+  const canResume = activeJobId && (activeJobStatus === "failed" || activeJobStatus === "terminated");
 
   const openExport = (format) => {
     if (!activeJobId) return;
@@ -203,6 +207,18 @@ export function App() {
       await loadJobs();
     } catch (err) {
       setUploadStatus(`Terminate failed: ${err.message}`);
+    }
+  };
+
+  const resumeActiveJob = async () => {
+    if (!activeJobId) return;
+    try {
+      const payload = await api(`/jobs/${activeJobId}/resume`, { method: "POST" });
+      setActiveJobStatus(payload.status || "processing");
+      setUploadStatus(`Job ${activeJobId} resumed`);
+      await loadJobs();
+    } catch (err) {
+      setUploadStatus(`Resume failed: ${err.message}`);
     }
   };
 
@@ -398,6 +414,9 @@ export function App() {
                 </button>
                 <button type="button" className="ghost" disabled={!canTerminate} onClick={terminateActiveJob}>
                   Stop job
+                </button>
+                <button type="button" className="ghost" disabled={!canResume} onClick={resumeActiveJob}>
+                  Resume job
                 </button>
                 <button type="button" className="ghost" onClick={loadJobs}>
                   Refresh jobs

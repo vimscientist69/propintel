@@ -35,6 +35,7 @@ def init_db(db_path: str | Path) -> None:
                     started_at TEXT,
                     completed_at TEXT,
                     input_format TEXT,
+                    input_path TEXT,
                     counts_json TEXT,
                     rejected_rows_json TEXT,
                     error TEXT
@@ -46,6 +47,7 @@ def init_db(db_path: str | Path) -> None:
                 CREATE TABLE IF NOT EXISTS leads (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT NOT NULL,
+                    row_index INTEGER,
                     lead_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(job_id) REFERENCES jobs(job_id)
@@ -53,6 +55,27 @@ def init_db(db_path: str | Path) -> None:
                 """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_leads_job_id ON leads(job_id);")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_job_row_unique ON leads(job_id, row_index) WHERE row_index IS NOT NULL;"
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS job_batches (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT NOT NULL,
+                    batch_index INTEGER NOT NULL,
+                    start_row INTEGER NOT NULL,
+                    end_row INTEGER NOT NULL,
+                    status TEXT NOT NULL,
+                    processed_rows INTEGER NOT NULL DEFAULT 0,
+                    error TEXT,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    UNIQUE(job_id, batch_index)
+                );
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_job_batches_job_id ON job_batches(job_id);")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS settings_profiles (
@@ -68,6 +91,12 @@ def init_db(db_path: str | Path) -> None:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_settings_profiles_active ON settings_profiles(is_active);"
             )
+            jobs_cols = {r["name"] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()}
+            if "input_path" not in jobs_cols:
+                conn.execute("ALTER TABLE jobs ADD COLUMN input_path TEXT")
+            leads_cols = {r["name"] for r in conn.execute("PRAGMA table_info(leads)").fetchall()}
+            if "row_index" not in leads_cols:
+                conn.execute("ALTER TABLE leads ADD COLUMN row_index INTEGER")
             conn.commit()
         finally:
             conn.close()
@@ -83,6 +112,7 @@ def create_job(
     job_id: str,
     input_format: str,
     status: str,
+    input_path: str | None = None,
 ) -> None:
     db_path = Path(db_path)
     with _DB_LOCK:
@@ -91,10 +121,10 @@ def create_job(
         try:
             conn.execute(
                 """
-                INSERT INTO jobs (job_id, status, created_at, input_format)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO jobs (job_id, status, created_at, input_format, input_path)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (job_id, status, _now_iso(), input_format),
+                (job_id, status, _now_iso(), input_format, input_path),
             )
             conn.commit()
         finally:
@@ -219,7 +249,7 @@ def get_job(db_path: str | Path, *, job_id: str) -> dict[str, Any] | None:
             row = conn.execute(
                 """
                 SELECT job_id, status, created_at, started_at, completed_at,
-                       input_format, counts_json, rejected_rows_json, error
+                       input_format, input_path, counts_json, rejected_rows_json, error
                 FROM jobs
                 WHERE job_id = ?
                 """,
@@ -240,6 +270,7 @@ def get_job(db_path: str | Path, *, job_id: str) -> dict[str, Any] | None:
                 "started_at": row["started_at"],
                 "completed_at": row["completed_at"],
                 "input_format": row["input_format"],
+                "input_path": row["input_path"],
                 "counts": counts,
                 "rejected_rows": rejected_rows,
                 "error": row["error"],
@@ -281,7 +312,7 @@ def list_jobs(
             rows = conn.execute(
                 f"""
                 SELECT job_id, status, created_at, started_at, completed_at,
-                       input_format, counts_json, rejected_rows_json, error
+                       input_format, input_path, counts_json, rejected_rows_json, error
                 FROM jobs
                 {where_sql}
                 ORDER BY datetime(created_at) DESC, job_id DESC
@@ -304,6 +335,7 @@ def list_jobs(
                         "started_at": row["started_at"],
                         "completed_at": row["completed_at"],
                         "input_format": row["input_format"],
+                        "input_path": row["input_path"],
                         "counts": counts,
                         "rejected_rows": rejected_rows,
                         "error": row["error"],
@@ -319,6 +351,7 @@ def insert_leads(
     *,
     job_id: str,
     leads: list[dict[str, Any]],
+    row_indices: list[int] | None = None,
 ) -> None:
     db_path = Path(db_path)
     with _DB_LOCK:
@@ -326,14 +359,21 @@ def insert_leads(
         conn = _connect(db_path)
         try:
             created_at = _now_iso()
+            if row_indices is not None and len(row_indices) != len(leads):
+                raise ValueError("row_indices length must match leads length")
             conn.executemany(
                 """
-                INSERT INTO leads (job_id, lead_json, created_at)
-                VALUES (?, ?, ?)
+                INSERT OR REPLACE INTO leads (job_id, row_index, lead_json, created_at)
+                VALUES (?, ?, ?, ?)
                 """,
                 [
-                    (job_id, json.dumps(lead, ensure_ascii=False), created_at)
-                    for lead in leads
+                    (
+                        job_id,
+                        (row_indices[idx] if row_indices is not None else None),
+                        json.dumps(lead, ensure_ascii=False),
+                        created_at,
+                    )
+                    for idx, lead in enumerate(leads)
                 ],
             )
             conn.commit()
@@ -488,6 +528,200 @@ def delete_settings_profile(db_path: str | Path, *, name: str) -> bool:
             )
             conn.commit()
             return True
+        finally:
+            conn.close()
+
+
+def create_job_batches(
+    db_path: str | Path,
+    *,
+    job_id: str,
+    total_rows: int,
+    batch_size: int,
+) -> None:
+    db_path = Path(db_path)
+    with _DB_LOCK:
+        init_db(db_path)
+        conn = _connect(db_path)
+        try:
+            conn.execute("DELETE FROM job_batches WHERE job_id = ?", (job_id,))
+            if total_rows <= 0:
+                conn.commit()
+                return
+            rows = []
+            index = 0
+            start = 0
+            while start < total_rows:
+                end = min(total_rows, start + batch_size)
+                rows.append((job_id, index, start, end, "pending", 0, None, None, None))
+                start = end
+                index += 1
+            conn.executemany(
+                """
+                INSERT INTO job_batches (
+                    job_id, batch_index, start_row, end_row, status,
+                    processed_rows, error, started_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def list_job_batches(db_path: str | Path, *, job_id: str) -> list[dict[str, Any]]:
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return []
+    with _DB_LOCK:
+        conn = _connect(db_path)
+        try:
+            rows = conn.execute(
+                """
+                SELECT batch_index, start_row, end_row, status, processed_rows,
+                       error, started_at, completed_at
+                FROM job_batches
+                WHERE job_id = ?
+                ORDER BY batch_index ASC
+                """,
+                (job_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+
+def claim_next_pending_batch(db_path: str | Path, *, job_id: str) -> dict[str, Any] | None:
+    db_path = Path(db_path)
+    with _DB_LOCK:
+        if not db_path.exists():
+            return None
+        conn = _connect(db_path)
+        try:
+            row = conn.execute(
+                """
+                SELECT id, batch_index, start_row, end_row
+                FROM job_batches
+                WHERE job_id = ? AND status = 'pending'
+                ORDER BY batch_index ASC
+                LIMIT 1
+                """,
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            conn.execute(
+                """
+                UPDATE job_batches
+                SET status = 'processing',
+                    started_at = ?,
+                    error = NULL
+                WHERE id = ?
+                """,
+                (_now_iso(), row["id"]),
+            )
+            conn.commit()
+            return {
+                "batch_index": row["batch_index"],
+                "start_row": row["start_row"],
+                "end_row": row["end_row"],
+            }
+        finally:
+            conn.close()
+
+
+def update_job_batch_status(
+    db_path: str | Path,
+    *,
+    job_id: str,
+    batch_index: int,
+    status: str,
+    processed_rows: int = 0,
+    error: str | None = None,
+) -> None:
+    db_path = Path(db_path)
+    with _DB_LOCK:
+        conn = _connect(db_path)
+        try:
+            conn.execute(
+                """
+                UPDATE job_batches
+                SET status = ?,
+                    processed_rows = ?,
+                    error = ?,
+                    completed_at = CASE WHEN ? IN ('completed', 'failed', 'terminated') THEN ? ELSE completed_at END
+                WHERE job_id = ? AND batch_index = ?
+                """,
+                (status, processed_rows, error, status, _now_iso(), job_id, batch_index),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def reset_resumable_batches(db_path: str | Path, *, job_id: str) -> None:
+    db_path = Path(db_path)
+    with _DB_LOCK:
+        conn = _connect(db_path)
+        try:
+            conn.execute(
+                """
+                UPDATE job_batches
+                SET status = 'pending',
+                    error = NULL,
+                    started_at = NULL,
+                    completed_at = NULL
+                WHERE job_id = ? AND status IN ('failed', 'terminated', 'processing')
+                """,
+                (job_id,),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def summarize_job_batches(db_path: str | Path, *, job_id: str) -> dict[str, int]:
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return {
+            "batches_total": 0,
+            "batches_completed": 0,
+            "rows_total": 0,
+            "rows_processed": 0,
+            "failed_batches": 0,
+        }
+    with _DB_LOCK:
+        conn = _connect(db_path)
+        try:
+            row = conn.execute(
+                """
+                SELECT
+                    COUNT(1) AS batches_total,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS batches_completed,
+                    SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_batches,
+                    SUM(end_row - start_row) AS rows_total,
+                    SUM(processed_rows) AS rows_processed
+                FROM job_batches
+                WHERE job_id = ?
+                """,
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                return {
+                    "batches_total": 0,
+                    "batches_completed": 0,
+                    "rows_total": 0,
+                    "rows_processed": 0,
+                    "failed_batches": 0,
+                }
+            return {
+                "batches_total": int(row["batches_total"] or 0),
+                "batches_completed": int(row["batches_completed"] or 0),
+                "rows_total": int(row["rows_total"] or 0),
+                "rows_processed": int(row["rows_processed"] or 0),
+                "failed_batches": int(row["failed_batches"] or 0),
+            }
         finally:
             conn.close()
 

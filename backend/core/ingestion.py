@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -299,6 +300,33 @@ def ingest_to_structures(
         sources_cfg=sources_cfg,
         should_stop=should_stop,
     )
+
+
+def ingest_rows_with_sources_config(
+    *,
+    rows: list[dict[str, Any]],
+    sources_cfg: dict[str, Any],
+    should_stop: Callable[[], bool] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """
+    MVP helper for batch processing:
+    process a pre-sliced row subset through the same ingestion logic.
+    """
+    with tempfile.NamedTemporaryFile("w", suffix=".json", encoding="utf-8", delete=False) as handle:
+        tmp_path = Path(handle.name)
+        handle.write(json.dumps(rows))
+    try:
+        return ingest_to_structures_with_sources_config(
+            input_path=tmp_path,
+            input_format="json",
+            sources_cfg=sources_cfg,
+            should_stop=should_stop,
+        )
+    finally:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
 
 def run_ingestion(

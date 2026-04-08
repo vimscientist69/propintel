@@ -7,7 +7,14 @@ try:
 except Exception:  # pragma: no cover
     TestClient = None
 
-from backend.core.storage_sqlite import create_job, init_db, insert_leads, update_job_completed, update_job_failed
+from backend.core.storage_sqlite import (
+    create_job,
+    create_job_batches,
+    init_db,
+    insert_leads,
+    update_job_completed,
+    update_job_failed,
+)
 
 if TestClient is not None:
     from backend.api import jobs as jobs_module
@@ -93,6 +100,16 @@ class TestApiJobs(unittest.TestCase):
         status = self.client.get("/jobs/j5")
         self.assertEqual(status.status_code, 200)
         self.assertEqual(status.json()["status"], "terminated")
+
+    def test_batches_and_resume_guard(self) -> None:
+        create_job(self.db_path, job_id="j6", input_format="csv", status="completed")
+        create_job_batches(self.db_path, job_id="j6", total_rows=30, batch_size=10)
+        r_batches = self.client.get("/jobs/j6/batches")
+        self.assertEqual(r_batches.status_code, 200)
+        self.assertEqual(len(r_batches.json()["batches"]), 3)
+
+        r_resume = self.client.post("/jobs/j6/resume")
+        self.assertEqual(r_resume.status_code, 409)
 
     def test_settings_endpoints(self) -> None:
         validate = self.client.post("/settings/validate", json={"website": {"enabled": True}})

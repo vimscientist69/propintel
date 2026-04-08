@@ -33,6 +33,12 @@ class TestConfigSchema(unittest.TestCase):
         with self.assertRaises(SourcesConfigValidationError):
             validate_sources_config({"website": {"enabled": "true"}})
 
+    def test_runtime_batch_size_validation(self) -> None:
+        out = validate_sources_config({"runtime": {"batch_size": 100, "stop_on_batch_error": True}})
+        self.assertEqual(out["runtime"]["batch_size"], 100)
+        with self.assertRaises(SourcesConfigValidationError):
+            validate_sources_config({"runtime": {"batch_size": 5}})
+
 
 if __name__ == "__main__":
     unittest.main()

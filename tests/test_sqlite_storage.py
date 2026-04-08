@@ -4,6 +4,8 @@ from pathlib import Path
 
 from backend.core.storage_sqlite import (
     activate_settings_profile,
+    claim_next_pending_batch,
+    create_job_batches,
     create_job,
     delete_settings_profile,
     get_active_settings_profile,
@@ -11,7 +13,11 @@ from backend.core.storage_sqlite import (
     get_leads,
     init_db,
     insert_leads,
+    list_job_batches,
     list_settings_profiles,
+    reset_resumable_batches,
+    summarize_job_batches,
+    update_job_batch_status,
     list_jobs,
     upsert_settings_profile,
     update_job_completed,
@@ -149,6 +155,39 @@ class TestSqliteStorage(unittest.TestCase):
             self.assertTrue(delete_settings_profile(db_path, name="profile-a"))
             profiles_after = list_settings_profiles(db_path)
             self.assertEqual(len(profiles_after), 1)
+
+    def test_job_batches_lifecycle_and_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = Path(tmp) / "propintel.sqlite"
+            init_db(db_path)
+            create_job(db_path, job_id="job-b", input_format="csv", status="uploaded")
+            create_job_batches(db_path, job_id="job-b", total_rows=230, batch_size=100)
+            batches = list_job_batches(db_path, job_id="job-b")
+            self.assertEqual(len(batches), 3)
+            first = claim_next_pending_batch(db_path, job_id="job-b")
+            self.assertIsNotNone(first)
+            self.assertEqual(first["batch_index"], 0)
+            update_job_batch_status(db_path, job_id="job-b", batch_index=0, status="completed", processed_rows=100)
+            second = claim_next_pending_batch(db_path, job_id="job-b")
+            self.assertIsNotNone(second)
+            update_job_batch_status(
+                db_path,
+                job_id="job-b",
+                batch_index=1,
+                status="failed",
+                processed_rows=0,
+                error="api error",
+            )
+            summary = summarize_job_batches(db_path, job_id="job-b")
+            self.assertEqual(summary["batches_total"], 3)
+            self.assertEqual(summary["batches_completed"], 1)
+            self.assertEqual(summary["rows_total"], 230)
+            self.assertEqual(summary["rows_processed"], 100)
+            self.assertEqual(summary["failed_batches"], 1)
+            reset_resumable_batches(db_path, job_id="job-b")
+            rows = list_job_batches(db_path, job_id="job-b")
+            statuses = [row["status"] for row in rows]
+            self.assertEqual(statuses.count("pending"), 2)
 
 
 if __name__ == "__main__":

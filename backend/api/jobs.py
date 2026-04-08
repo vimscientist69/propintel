@@ -10,17 +10,27 @@ from uuid import uuid4
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from backend.core.ingestion import JobTerminationRequested, ingest_to_structures
-from backend.core.parser import CANONICAL_FIELDS
+from backend.core.ingestion import (
+    JobTerminationRequested,
+    _load_sources_config,
+    ingest_rows_with_sources_config,
+)
+from backend.core.parser import CANONICAL_FIELDS, load_input
 from backend.core.config_schema import validate_sources_config
 from backend.core.storage_sqlite import (
+    claim_next_pending_batch,
+    create_job_batches,
     create_job,
     get_active_settings_profile,
     get_job,
     get_leads,
     init_db,
     insert_leads,
+    list_job_batches,
     list_jobs,
+    reset_resumable_batches,
+    summarize_job_batches,
+    update_job_batch_status,
     update_job_completed,
     update_job_failed,
     update_job_processing_started,
@@ -51,32 +61,84 @@ def _process_job(job_id: str, *, input_path: Path, input_format: str) -> None:
         cancel_event = JOB_CANCEL_EVENTS.setdefault(job_id, threading.Event())
         active_profile = get_active_settings_profile(DB_PATH)
         if active_profile and isinstance(active_profile.get("payload"), dict):
-            from backend.core.ingestion import ingest_to_structures_with_sources_config
-
-            leads, rejected, summary = ingest_to_structures_with_sources_config(
-                input_path=input_path,
-                input_format=input_format,
-                sources_cfg=validate_sources_config(active_profile["payload"]),
-                should_stop=cancel_event.is_set,
-            )
+            sources_cfg = validate_sources_config(active_profile["payload"])
         else:
-            leads, rejected, summary = ingest_to_structures(
-                input_path=input_path,
-                input_format=input_format,
-                config_path=DEFAULT_CONFIG_PATH,
-                should_stop=cancel_event.is_set,
-            )
+            sources_cfg = _load_sources_config(DEFAULT_CONFIG_PATH)
 
-        if cancel_event.is_set():
-            update_job_terminated(DB_PATH, job_id=job_id)
-            return
-        insert_leads(DB_PATH, job_id=job_id, leads=leads)
-        update_job_completed(
-            DB_PATH,
-            job_id=job_id,
-            counts=summary["counts"],
-            rejected_rows=rejected,
+        input_mapping_cfg = (sources_cfg.get("input") or {}) if isinstance(sources_cfg, dict) else {}
+        runtime_cfg = (sources_cfg.get("runtime") or {}) if isinstance(sources_cfg, dict) else {}
+        batch_size = int(runtime_cfg.get("batch_size", 100))
+        stop_on_batch_error = bool(runtime_cfg.get("stop_on_batch_error", True))
+
+        all_rows, rejected = load_input(
+            path=input_path,
+            input_format=input_format,
+            mapping_config=input_mapping_cfg,
         )
+        if len(list_job_batches(DB_PATH, job_id=job_id)) == 0:
+            create_job_batches(DB_PATH, job_id=job_id, total_rows=len(all_rows), batch_size=batch_size)
+
+        total_counts: dict[str, float] = {}
+        while True:
+            if cancel_event.is_set():
+                update_job_terminated(DB_PATH, job_id=job_id)
+                break
+            batch = claim_next_pending_batch(DB_PATH, job_id=job_id)
+            if batch is None:
+                update_job_completed(
+                    DB_PATH,
+                    job_id=job_id,
+                    counts={k: (round(v, 4) if isinstance(v, float) else v) for k, v in total_counts.items()},
+                    rejected_rows=rejected,
+                )
+                break
+            start_row = int(batch["start_row"])
+            end_row = int(batch["end_row"])
+            batch_index = int(batch["batch_index"])
+            try:
+                leads, _, summary = ingest_rows_with_sources_config(
+                    rows=all_rows[start_row:end_row],
+                    sources_cfg=sources_cfg,
+                    should_stop=cancel_event.is_set,
+                )
+                row_indices = list(range(start_row, start_row + len(leads)))
+                insert_leads(DB_PATH, job_id=job_id, leads=leads, row_indices=row_indices)
+                for key, value in summary.get("counts", {}).items():
+                    if isinstance(value, (int, float)):
+                        total_counts[key] = float(total_counts.get(key, 0.0)) + float(value)
+                update_job_batch_status(
+                    DB_PATH,
+                    job_id=job_id,
+                    batch_index=batch_index,
+                    status="completed",
+                    processed_rows=end_row - start_row,
+                    error=None,
+                )
+            except JobTerminationRequested:
+                update_job_batch_status(
+                    DB_PATH,
+                    job_id=job_id,
+                    batch_index=batch_index,
+                    status="terminated",
+                    processed_rows=0,
+                    error="terminated_by_user",
+                )
+                update_job_terminated(DB_PATH, job_id=job_id)
+                break
+            except Exception as exc:  # noqa: BLE001
+                update_job_batch_status(
+                    DB_PATH,
+                    job_id=job_id,
+                    batch_index=batch_index,
+                    status="failed",
+                    processed_rows=0,
+                    error=str(exc),
+                )
+                update_job_failed(DB_PATH, job_id=job_id, error=f"{exc}")
+                if stop_on_batch_error:
+                    break
+                # continue when stop_on_batch_error=false
+        return
     except JobTerminationRequested:
         update_job_terminated(DB_PATH, job_id=job_id)
     except Exception as exc:  # noqa: BLE001
@@ -116,6 +178,7 @@ def submit_job(
         job_id=job_id,
         input_format=normalized_format,
         status="uploaded",
+        input_path=str(input_path),
     )
     update_job_processing_started(DB_PATH, job_id=job_id)
 
@@ -157,11 +220,13 @@ def poll_job(job_id: str) -> dict[str, Any]:
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
 
+    batch_summary = summarize_job_batches(DB_PATH, job_id=job_id)
     return {
         "job_id": job_id,
         "status": job["status"],
         "counts": job["counts"],
         "error": job["error"],
+        **batch_summary,
     }
 
 
@@ -187,6 +252,33 @@ def terminate_job(job_id: str) -> dict[str, Any]:
 
     update_job_terminated(DB_PATH, job_id=job_id)
     return {"job_id": job_id, "status": "terminated"}
+
+
+@router.post("/{job_id}/resume")
+def resume_job(job_id: str) -> dict[str, Any]:
+    job = get_job(DB_PATH, job_id=job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    status = str(job.get("status") or "")
+    if status not in {"failed", "terminated"}:
+        raise HTTPException(status_code=409, detail=f"job is not resumable from status={status}")
+    input_path = Path(str(job.get("input_path") or ""))
+    if not input_path.exists():
+        raise HTTPException(status_code=404, detail="job input file not found")
+    input_format = str(job.get("input_format") or "csv")
+
+    reset_resumable_batches(DB_PATH, job_id=job_id)
+    update_job_processing_started(DB_PATH, job_id=job_id)
+    cancel_event = JOB_CANCEL_EVENTS.setdefault(job_id, threading.Event())
+    cancel_event.clear()
+    future = EXECUTOR.submit(
+        _process_job,
+        job_id,
+        input_path=input_path,
+        input_format=input_format,
+    )
+    JOB_FUTURES[job_id] = future
+    return {"job_id": job_id, "status": "processing"}
 
 
 @router.get("/{job_id}/results")
@@ -216,6 +308,14 @@ def get_results(job_id: str):
 
     leads = get_leads(DB_PATH, job_id=job_id)
     return {"job_id": job_id, "status": "completed", "leads": leads}
+
+
+@router.get("/{job_id}/batches")
+def get_batches(job_id: str) -> dict[str, Any]:
+    job = get_job(DB_PATH, job_id=job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job not found")
+    return {"job_id": job_id, "batches": list_job_batches(DB_PATH, job_id=job_id)}
 
 
 @router.get("/{job_id}/rejected")

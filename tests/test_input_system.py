@@ -191,10 +191,10 @@ class TestInputSystem(unittest.TestCase):
 
             with patch(
                 "backend.core.ingestion.enrich_lead",
-                side_effect=lambda lead, cfg: dict(lead),
+                side_effect=lambda lead, cfg, runtime_ctx=None: dict(lead),
             ), patch(
                 "backend.core.ingestion.enrich_lead_from_google_maps",
-                side_effect=lambda lead, cfg: {
+                side_effect=lambda lead, cfg, runtime_ctx=None: {
                     **lead,
                     "source": "input,google_maps",
                     "_google_maps_values": {"phone": "022 222 2222"},
@@ -211,6 +211,82 @@ class TestInputSystem(unittest.TestCase):
             self.assertEqual(leads[0]["phone"], "022 222 2222")
             phone_candidates = leads[0]["enrichment_history"]["candidates"]["phone"]
             self.assertTrue(any(c.get("source") == "google_maps" for c in phone_candidates))
+
+    def test_worker_concurrency_preserves_input_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            csv_path = tmp_path / "leads.csv"
+            with csv_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["Company"])
+                writer.writeheader()
+                writer.writerow({"Company": "Lead A"})
+                writer.writerow({"Company": "Lead B"})
+                writer.writerow({"Company": "Lead C"})
+
+            sources_cfg = {
+                "input": {
+                    "required_any": ["company_name"],
+                    "schema_aliases": {"company_name": ["company"]},
+                    "defaults": {"source": "input"},
+                },
+                "runtime": {"worker_concurrency": 4, "providers": {}},
+            }
+            summary_path = tmp_path / "summary.json"
+
+            with patch(
+                "backend.core.ingestion.enrich_lead",
+                side_effect=lambda lead, cfg, runtime_ctx=None: {**lead, "email": f"{lead['company_name'].replace(' ', '').lower()}@x.com"},
+            ), patch(
+                "backend.core.ingestion.enrich_lead_from_google_maps",
+                side_effect=lambda lead, cfg, runtime_ctx=None: dict(lead),
+            ):
+                summary = run_ingestion_with_sources_config(
+                    input_path=csv_path,
+                    input_format="csv",
+                    sources_cfg=sources_cfg,
+                    output_summary_path=summary_path,
+                )
+
+            leads = json.loads(Path(summary["output"]["leads_json"]).read_text(encoding="utf-8"))
+            self.assertEqual([lead["company_name"] for lead in leads], ["Lead A", "Lead B", "Lead C"])
+
+    def test_runtime_provider_defaults_are_optional(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            csv_path = tmp_path / "leads.csv"
+            with csv_path.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["Company"])
+                writer.writeheader()
+                writer.writerow({"Company": "Lead A"})
+
+            seen_runtime_ctx: dict[str, object] = {}
+
+            def _capture_enrich(lead, cfg, runtime_ctx=None):
+                nonlocal seen_runtime_ctx
+                seen_runtime_ctx = dict(runtime_ctx or {})
+                return dict(lead)
+
+            sources_cfg = {
+                "input": {
+                    "required_any": ["company_name"],
+                    "schema_aliases": {"company_name": ["company"]},
+                    "defaults": {"source": "input"},
+                },
+                "runtime": {"worker_concurrency": 2, "providers": {"serper": {"requests_per_second": 1.0, "max_concurrent": 1}}},
+            }
+            summary_path = tmp_path / "summary.json"
+
+            with patch("backend.core.ingestion.enrich_lead", side_effect=_capture_enrich):
+                run_ingestion_with_sources_config(
+                    input_path=csv_path,
+                    input_format="csv",
+                    sources_cfg=sources_cfg,
+                    output_summary_path=summary_path,
+                )
+
+            self.assertIn("serper_retry_cfg", seen_runtime_ctx)
+            self.assertIn("google_maps_retry_cfg", seen_runtime_ctx)
+            self.assertIn("serper_request_executor", seen_runtime_ctx)
 
 
 if __name__ == "__main__":

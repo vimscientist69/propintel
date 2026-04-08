@@ -199,6 +199,7 @@ export function App() {
   const endIdx = Math.min(jobsOffset + JOB_LIMIT, jobsTotal);
   const recentJobs = jobs.slice(0, 6);
   const activeJob = jobs.find((j) => j.job_id === activeJobId);
+  const explorerJob = jobs.find((j) => j.job_id === explorerJobId);
   const statusTone = activeJob?.status || "idle";
   const startedPct =
     activeBatchesTotal > 0 ? Math.min(100, Math.round((activeBatchesStarted / activeBatchesTotal) * 100)) : 0;
@@ -385,6 +386,9 @@ export function App() {
               <div>
                 <h2>Main Control Panel</h2>
                 <p>Choose input format, upload dataset, and dispatch a new job.</p>
+                {(activeJobStatus === "processing" || activeJobStatus === "uploaded") && (
+                  <span className="status-chip partial-chip">Partial results available</span>
+                )}
               </div>
               <span className={`telemetry telemetry-${statusTone}`}>{isSubmitting ? "Running" : "Idle"}</span>
             </div>
@@ -487,7 +491,12 @@ export function App() {
                 >
                   <span className="mono">{job.job_id.slice(0, 8)}</span>
                   <span className={`pill pill-${job.status}`}>{job.status}</span>
-                  <span>{job.input_format || "-"}</span>
+                  <span className="job-meta">
+                    {job.input_format || "-"}
+                    {job.job_id === activeJobId && activeBatchesTotal > 0
+                      ? ` · ${activeBatchesCompleted}/${activeBatchesTotal}`
+                      : ""}
+                  </span>
                 </button>
               ))}
             </div>
@@ -688,6 +697,9 @@ export function App() {
               <div>
                 <h2>Data Explorer</h2>
                 <p>Search and inspect lead rows for a selected job.</p>
+                {(explorerJob?.status === "processing" || explorerJob?.status === "uploaded") && (
+                  <span className="status-chip partial-chip">Showing partial batch results</span>
+                )}
               </div>
               <button type="button" className="ghost" onClick={loadExplorerRows}>
                 Reload
@@ -776,6 +788,11 @@ export function App() {
               onChange={(e) => setSettingsPayloadText(e.target.value)}
               rows={14}
             />
+            {String(settingsPayloadText || "").trim() === "{}" && (
+              <p className="muted">
+                Minimal template: {"{"}"runtime":{"{"}"worker_concurrency":6,"providers":{"{"}"google_maps":{"{"}"requests_per_second":2.0,"max_concurrent":2{"}"},"serper":{"{"}"requests_per_second":1.5,"max_concurrent":2{"}"}{"}"}{"}"}{"}"}
+              </p>
+            )}
             <p className="muted">{settingsStatus}</p>
             <details className="rejected" open>
               <summary>Profiles</summary>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import concurrent.futures
 import json
 import tempfile
 from datetime import datetime
@@ -12,6 +13,7 @@ from backend.core.logging_utils import get_logger
 from backend.core.normalizer import normalize_lead
 from backend.core.parser import CANONICAL_FIELDS, load_input
 from backend.core.config_schema import validate_sources_config
+from backend.core.rate_limit import ProviderLimiter, ProviderRetryConfig
 from backend.services.conflict_resolver import (
     TRACKED_FIELDS,
     make_candidate,
@@ -83,16 +85,69 @@ def ingest_to_structures_with_sources_config(
     scoring_cfg = (sources_cfg.get("scoring") or {}) if isinstance(sources_cfg, dict) else {}
     scoring_enabled = bool(scoring_cfg.get("enabled", True))
     scored_rows = 0
+    runtime_cfg = (sources_cfg.get("runtime") or {}) if isinstance(sources_cfg, dict) else {}
+    worker_concurrency = max(1, int(runtime_cfg.get("worker_concurrency", 1)))
+    providers_cfg = runtime_cfg.get("providers") if isinstance(runtime_cfg, dict) else None
+    providers_cfg = providers_cfg if isinstance(providers_cfg, dict) else {}
+
+    def _provider_cfg(name: str) -> dict[str, Any]:
+        value = providers_cfg.get(name)
+        return value if isinstance(value, dict) else {}
+
+    def _build_executor(name: str, *, default_rps: float, default_concurrent: int) -> Callable[[Callable[[], object]], object] | None:
+        p_cfg = _provider_cfg(name)
+        if p_cfg.get("enabled", True) is False:
+            return None
+        limiter = ProviderLimiter(
+            rps=float(p_cfg.get("requests_per_second", default_rps)),
+            burst=int(p_cfg.get("burst", max(1, int(default_rps * 2)))),
+            max_concurrent=int(p_cfg.get("max_concurrent", default_concurrent)),
+        )
+        return lambda fn: limiter.run(fn)
+
+    def _build_retry(name: str, *, default_attempts: int, default_base: int, default_max: int, default_jitter: int) -> ProviderRetryConfig:
+        retry_cfg = _provider_cfg(name).get("retry")
+        retry_cfg = retry_cfg if isinstance(retry_cfg, dict) else {}
+        return ProviderRetryConfig(
+            max_attempts=int(retry_cfg.get("max_attempts", default_attempts)),
+            base_delay_ms=int(retry_cfg.get("base_delay_ms", default_base)),
+            max_delay_ms=int(retry_cfg.get("max_delay_ms", default_max)),
+            jitter_ms=int(retry_cfg.get("jitter_ms", default_jitter)),
+        )
+
+    runtime_context = {
+        "serper_request_executor": _build_executor("serper", default_rps=1.5, default_concurrent=2),
+        "google_maps_request_executor": _build_executor("google_maps", default_rps=2.0, default_concurrent=2),
+        "serper_retry_cfg": _build_retry("serper", default_attempts=4, default_base=400, default_max=5000, default_jitter=300),
+        "google_maps_retry_cfg": _build_retry("google_maps", default_attempts=4, default_base=300, default_max=4000, default_jitter=250),
+    }
 
     enriched_leads: list[dict[str, Any]] = []
-    for lead in deduped_leads:
-        _check_stop()
-        try:
-            enriched_leads.append(enrich_lead(lead, website_cfg))
-        except Exception as exc:  # noqa: BLE001
-            fallback = dict(lead)
-            fallback["enrichment_error"] = str(exc)
-            enriched_leads.append(fallback)
+    if worker_concurrency <= 1 or len(deduped_leads) <= 1:
+        for lead in deduped_leads:
+            _check_stop()
+            try:
+                enriched_leads.append(enrich_lead(lead, website_cfg, runtime_context))
+            except Exception as exc:  # noqa: BLE001
+                fallback = dict(lead)
+                fallback["enrichment_error"] = str(exc)
+                enriched_leads.append(fallback)
+    else:
+        enriched_leads = [dict(lead) for lead in deduped_leads]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_concurrency) as pool:
+            futures = {
+                pool.submit(enrich_lead, lead, website_cfg, runtime_context): idx
+                for idx, lead in enumerate(deduped_leads)
+            }
+            for future in concurrent.futures.as_completed(futures):
+                _check_stop()
+                idx = futures[future]
+                try:
+                    enriched_leads[idx] = future.result()
+                except Exception as exc:  # noqa: BLE001
+                    fallback = dict(deduped_leads[idx])
+                    fallback["enrichment_error"] = str(exc)
+                    enriched_leads[idx] = fallback
 
     google_enriched_leads: list[dict[str, Any]] = enriched_leads
     google_attempted = 0
@@ -110,28 +165,57 @@ def ingest_to_structures_with_sources_config(
     google_enabled = bool(google_maps_cfg.get("enabled", False))
 
     if google_enabled:
-        google_enriched_leads = []
-        for lead in enriched_leads:
-            _check_stop()
-            google_attempted += 1
-            try:
-                updated = enrich_lead_from_google_maps(lead, google_maps_cfg)
-            except Exception as exc:  # noqa: BLE001
-                updated = dict(lead)
-                updated["google_maps_error"] = str(exc)
+        if worker_concurrency <= 1 or len(enriched_leads) <= 1:
+            google_enriched_leads = []
+            for lead in enriched_leads:
+                _check_stop()
+                google_attempted += 1
+                try:
+                    updated = enrich_lead_from_google_maps(lead, google_maps_cfg, runtime_context)
+                except Exception as exc:  # noqa: BLE001
+                    updated = dict(lead)
+                    updated["google_maps_error"] = str(exc)
 
-            if updated.get("google_maps_error"):
-                google_failed += 1
-            if updated.get("source") and "google_maps" in str(updated.get("source")):
-                google_matched += 1
-            if (
-                str(updated.get("location") or "").strip()
-                and str(updated.get("location") or "").strip()
-                != str(lead.get("location") or "").strip()
-            ):
-                google_location_normalized += 1
+                if updated.get("google_maps_error"):
+                    google_failed += 1
+                if updated.get("source") and "google_maps" in str(updated.get("source")):
+                    google_matched += 1
+                if (
+                    str(updated.get("location") or "").strip()
+                    and str(updated.get("location") or "").strip()
+                    != str(lead.get("location") or "").strip()
+                ):
+                    google_location_normalized += 1
 
-            google_enriched_leads.append(updated)
+                google_enriched_leads.append(updated)
+        else:
+            google_enriched_leads = [dict(lead) for lead in enriched_leads]
+            google_attempted = len(enriched_leads)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=worker_concurrency) as pool:
+                futures = {
+                    pool.submit(enrich_lead_from_google_maps, lead, google_maps_cfg, runtime_context): idx
+                    for idx, lead in enumerate(enriched_leads)
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    _check_stop()
+                    idx = futures[future]
+                    lead = enriched_leads[idx]
+                    try:
+                        updated = future.result()
+                    except Exception as exc:  # noqa: BLE001
+                        updated = dict(lead)
+                        updated["google_maps_error"] = str(exc)
+                    if updated.get("google_maps_error"):
+                        google_failed += 1
+                    if updated.get("source") and "google_maps" in str(updated.get("source")):
+                        google_matched += 1
+                    if (
+                        str(updated.get("location") or "").strip()
+                        and str(updated.get("location") or "").strip()
+                        != str(lead.get("location") or "").strip()
+                    ):
+                        google_location_normalized += 1
+                    google_enriched_leads[idx] = updated
 
     resolved_leads: list[dict[str, Any]] = []
     for idx, base_lead in enumerate(deduped_leads):

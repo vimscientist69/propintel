@@ -4,7 +4,7 @@
 - [x] Test other sample inputs as well for basic website enrichment
 
 **Edge Cases**:
-- [ ] very big input files (OOM, no saves - risky if crashes or an api stops working)
+- [x] very big input files (OOM, no saves - risky if crashes or an api stops working)
 - [ ] google maps or other apis rate limiting handling
 
 ---

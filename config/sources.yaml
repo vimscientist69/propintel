@@ -128,3 +128,11 @@ sources:
   runtime:
     batch_size: 10
     stop_on_batch_error: false
+    worker_concurrency: 6
+    providers:
+      google_maps:
+        requests_per_second: 2.0
+        max_concurrent: 2
+      serper:
+        requests_per_second: 1.5
+        max_concurrent: 2

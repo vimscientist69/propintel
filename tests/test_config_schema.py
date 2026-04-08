@@ -39,6 +39,24 @@ class TestConfigSchema(unittest.TestCase):
         with self.assertRaises(SourcesConfigValidationError):
             validate_sources_config({"runtime": {"batch_size": 5}})
 
+    def test_runtime_provider_limits_validation(self) -> None:
+        out = validate_sources_config(
+            {
+                "runtime": {
+                    "worker_concurrency": 6,
+                    "providers": {
+                        "google_maps": {"requests_per_second": 2.0, "max_concurrent": 2},
+                        "serper": {"requests_per_second": 1.5, "max_concurrent": 2},
+                    },
+                }
+            }
+        )
+        self.assertEqual(out["runtime"]["worker_concurrency"], 6)
+        with self.assertRaises(SourcesConfigValidationError):
+            validate_sources_config(
+                {"runtime": {"providers": {"google_maps": {"requests_per_second": 0}}}}
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

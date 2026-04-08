@@ -3,9 +3,10 @@ from __future__ import annotations
 import os
 import time
 from difflib import SequenceMatcher
-from typing import Any
+from typing import Any, Callable
 
 from backend.core.logging_utils import get_logger
+from backend.core.rate_limit import ProviderRetryConfig, sleep_with_backoff
 
 
 logger = get_logger(__name__)
@@ -43,23 +44,26 @@ def _request_json_with_retries(
     params: dict[str, Any],
     timeout_seconds: int,
     max_retries: int,
+    request_executor: Callable[[Callable[[], object]], object] | None = None,
+    retry_cfg: ProviderRetryConfig | None = None,
 ) -> dict[str, Any] | None:
     import requests
 
-    attempts = max(0, int(max_retries)) + 1
-    delay_seconds = 0.5
+    cfg = retry_cfg or ProviderRetryConfig(max_attempts=max(0, int(max_retries)) + 1)
+    attempts = max(1, int(cfg.max_attempts))
 
     for attempt in range(attempts):
         try:
-            if method == "GET":
-                response = requests.get(url, params=params, timeout=timeout_seconds)
-            else:
-                response = requests.post(url, json=params, timeout=timeout_seconds)
+            def _do_request() -> object:
+                if method == "GET":
+                    return requests.get(url, params=params, timeout=timeout_seconds)
+                return requests.post(url, json=params, timeout=timeout_seconds)
+
+            response = _do_request() if request_executor is None else request_executor(_do_request)
 
             if response.status_code in (429, 500, 502, 503, 504):
                 if attempt < attempts - 1:
-                    time.sleep(delay_seconds)
-                    delay_seconds *= 2
+                    sleep_with_backoff(attempt, cfg)
                     continue
                 return None
 
@@ -72,8 +76,7 @@ def _request_json_with_retries(
             return payload
         except Exception:
             if attempt < attempts - 1:
-                time.sleep(delay_seconds)
-                delay_seconds *= 2
+                sleep_with_backoff(attempt, cfg)
                 continue
             return None
 
@@ -88,6 +91,8 @@ def normalize_location(
     max_retries: int,
     region: str | None = None,
     language: str | None = None,
+    request_executor: Callable[[Callable[[], object]], object] | None = None,
+    retry_cfg: ProviderRetryConfig | None = None,
 ) -> str | None:
     if not _is_usable_location(raw_location):
         logger.debug("Google Maps normalize_location skipped: unusable input")
@@ -108,6 +113,8 @@ def normalize_location(
         params=params,
         timeout_seconds=timeout_seconds,
         max_retries=max_retries,
+        request_executor=request_executor,
+        retry_cfg=retry_cfg,
     )
     if not payload:
         logger.warning("Google Maps geocoding returned no payload for location='{}'", raw_location)
@@ -137,6 +144,8 @@ def search_places(
     max_retries: int,
     region: str | None = None,
     language: str | None = None,
+    request_executor: Callable[[Callable[[], object]], object] | None = None,
+    retry_cfg: ProviderRetryConfig | None = None,
 ) -> list[dict[str, Any]]:
     import requests
 
@@ -153,22 +162,25 @@ def search_places(
     if language:
         body["languageCode"] = language
 
-    attempts = max(0, int(max_retries)) + 1
-    delay_seconds = 0.5
+    cfg = retry_cfg or ProviderRetryConfig(max_attempts=max(0, int(max_retries)) + 1)
+    attempts = max(1, int(cfg.max_attempts))
     payload: dict[str, Any] | None = None
 
     for attempt in range(attempts):
         try:
-            response = requests.post(
-                "https://places.googleapis.com/v1/places:searchText",
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Goog-Api-Key": google_maps_api_key,
-                    "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.name",
-                },
-                json=body,
-                timeout=timeout_seconds,
-            )
+            def _do_request() -> object:
+                return requests.post(
+                    "https://places.googleapis.com/v1/places:searchText",
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Goog-Api-Key": google_maps_api_key,
+                        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.name",
+                    },
+                    json=body,
+                    timeout=timeout_seconds,
+                )
+
+            response = _do_request() if request_executor is None else request_executor(_do_request)
             if response.status_code in (429, 500, 502, 503, 504):
                 logger.warning(
                     "Google Maps Text Search retryable status={} attempt={}/{} query='{}'",
@@ -178,8 +190,7 @@ def search_places(
                     query,
                 )
                 if attempt < attempts - 1:
-                    time.sleep(delay_seconds)
-                    delay_seconds *= 2
+                    sleep_with_backoff(attempt, cfg)
                     continue
                 return []
             if not response.ok:
@@ -201,8 +212,7 @@ def search_places(
                 query,
             )
             if attempt < attempts - 1:
-                time.sleep(delay_seconds)
-                delay_seconds *= 2
+                sleep_with_backoff(attempt, cfg)
                 continue
             return []
 
@@ -247,6 +257,8 @@ def get_place_details(
     timeout_seconds: int,
     max_retries: int,
     language: str | None = None,
+    request_executor: Callable[[Callable[[], object]], object] | None = None,
+    retry_cfg: ProviderRetryConfig | None = None,
 ) -> dict[str, Any] | None:
     import requests
 
@@ -254,21 +266,24 @@ def get_place_details(
     if language:
         params["languageCode"] = language
 
-    attempts = max(0, int(max_retries)) + 1
-    delay_seconds = 0.5
+    cfg = retry_cfg or ProviderRetryConfig(max_attempts=max(0, int(max_retries)) + 1)
+    attempts = max(1, int(cfg.max_attempts))
 
     for attempt in range(attempts):
         try:
-            response = requests.get(
-                f"https://places.googleapis.com/v1/places/{place_id}",
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Goog-Api-Key": google_maps_api_key,
-                    "X-Goog-FieldMask": "id,displayName,formattedAddress,websiteUri,nationalPhoneNumber,internationalPhoneNumber",
-                },
-                params=params,
-                timeout=timeout_seconds,
-            )
+            def _do_request() -> object:
+                return requests.get(
+                    f"https://places.googleapis.com/v1/places/{place_id}",
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Goog-Api-Key": google_maps_api_key,
+                        "X-Goog-FieldMask": "id,displayName,formattedAddress,websiteUri,nationalPhoneNumber,internationalPhoneNumber",
+                    },
+                    params=params,
+                    timeout=timeout_seconds,
+                )
+
+            response = _do_request() if request_executor is None else request_executor(_do_request)
             if response.status_code in (429, 500, 502, 503, 504):
                 logger.warning(
                     "Google Maps Place Details retryable status={} place_id={} attempt={}/{}",
@@ -278,8 +293,7 @@ def get_place_details(
                     attempts,
                 )
                 if attempt < attempts - 1:
-                    time.sleep(delay_seconds)
-                    delay_seconds *= 2
+                    sleep_with_backoff(attempt, cfg)
                     continue
                 return None
             if not response.ok:
@@ -316,8 +330,7 @@ def get_place_details(
                 attempts,
             )
             if attempt < attempts - 1:
-                time.sleep(delay_seconds)
-                delay_seconds *= 2
+                sleep_with_backoff(attempt, cfg)
                 continue
             return None
 
@@ -366,6 +379,7 @@ def match_best_candidate(
 def enrich_lead_from_google_maps(
     lead: dict[str, Any],
     google_maps_config: dict[str, Any] | None = None,
+    runtime_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     enriched = dict(lead)
     cfg = google_maps_config or {}
@@ -384,6 +398,9 @@ def enrich_lead_from_google_maps(
     min_name_match_score = float(cfg.get("min_name_match_score", 0.5))
     region = _normalize_str(cfg.get("region")) or None
     language = _normalize_str(cfg.get("language")) or None
+    runtime = runtime_context or {}
+    request_executor = runtime.get("google_maps_request_executor")
+    retry_cfg = runtime.get("google_maps_retry_cfg")
 
     company_name = _normalize_str(enriched.get("company_name"))
     if not company_name:
@@ -404,6 +421,8 @@ def enrich_lead_from_google_maps(
         max_retries=max_retries,
         region=region,
         language=language,
+        request_executor=request_executor if callable(request_executor) else None,
+        retry_cfg=retry_cfg if isinstance(retry_cfg, ProviderRetryConfig) else None,
     ) if _is_usable_location(original_location) else None
 
     # If location exists but is invalid/unusable, we continue name-only search.
@@ -415,6 +434,8 @@ def enrich_lead_from_google_maps(
         max_retries=max_retries,
         region=region,
         language=language,
+        request_executor=request_executor if callable(request_executor) else None,
+        retry_cfg=retry_cfg if isinstance(retry_cfg, ProviderRetryConfig) else None,
     )
     if not candidates and normalized_location:
         logger.info(
@@ -430,6 +451,8 @@ def enrich_lead_from_google_maps(
             max_retries=max_retries,
             region=region,
             language=language,
+            request_executor=request_executor if callable(request_executor) else None,
+            retry_cfg=retry_cfg if isinstance(retry_cfg, ProviderRetryConfig) else None,
         )
 
     chosen = match_best_candidate(
@@ -453,6 +476,8 @@ def enrich_lead_from_google_maps(
         timeout_seconds=timeout_seconds,
         max_retries=max_retries,
         language=language,
+        request_executor=request_executor if callable(request_executor) else None,
+        retry_cfg=retry_cfg if isinstance(retry_cfg, ProviderRetryConfig) else None,
     )
     if not details:
         logger.info("Google Maps no place details place_id={} company='{}'", place_id, company_name)

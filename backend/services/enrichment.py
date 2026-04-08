@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import os
+from typing import Callable
 from typing import Any
 
+from backend.core.rate_limit import ProviderRetryConfig, sleep_with_backoff
 from backend.services.contact_parser import normalize_email_advanced, normalize_phone_advanced
 from backend.services.scraper import (
     discover_contact_page_urls,
@@ -50,9 +52,44 @@ def _fetch_with_retries(
     return last_result
 
 
+def _discover_website_with_controls(
+    *,
+    company_name: str,
+    serper_api_key: str | None,
+    timeout_seconds: int,
+    request_executor: Callable[[Callable[[], object]], object] | None,
+    retry_cfg: ProviderRetryConfig,
+) -> str | None:
+    attempts = max(1, int(retry_cfg.max_attempts))
+    for attempt in range(attempts):
+        try:
+            if request_executor is None:
+                discovered = discover_company_website(
+                    company_name=company_name,
+                    serper_api_key=serper_api_key,
+                    timeout_seconds=timeout_seconds,
+                )
+            else:
+                discovered = request_executor(
+                    lambda: discover_company_website(
+                        company_name=company_name,
+                        serper_api_key=serper_api_key,
+                        timeout_seconds=timeout_seconds,
+                    )
+                )
+            if discovered:
+                return str(discovered)
+        except Exception:
+            pass
+        if attempt < attempts - 1:
+            sleep_with_backoff(attempt, retry_cfg)
+    return None
+
+
 def enrich_lead(
     lead: dict[str, Any],
     website_config: dict[str, Any] | None = None,
+    runtime_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     enriched = dict(lead)
     enriched.setdefault("source", "input")
@@ -68,15 +105,20 @@ def enrich_lead(
     max_retries = int(cfg.get("max_retries", 2))
     user_agent = str(cfg.get("user_agent", "PropIntelBot/0.1"))
     chatbot_keywords = cfg.get("chatbot_keywords") or []
+    runtime = runtime_context or {}
+    serper_executor = runtime.get("serper_request_executor")
+    serper_retry_cfg = runtime.get("serper_retry_cfg") or ProviderRetryConfig()
 
     website = (enriched.get("website") or "").strip()
     if not website and cfg.get("discover_with_serper", True):
         company_name = str(enriched.get("company_name") or "").strip()
         location = str(enriched.get("location") or "").strip() or None
-        discovered = discover_company_website(
+        discovered = _discover_website_with_controls(
             company_name=company_name,
             serper_api_key=os.getenv("SERPER_API_KEY"),
             timeout_seconds=serper_timeout_seconds,
+            request_executor=serper_executor if callable(serper_executor) else None,
+            retry_cfg=serper_retry_cfg if isinstance(serper_retry_cfg, ProviderRetryConfig) else ProviderRetryConfig(),
         )
         if discovered:
             website = discovered
@@ -96,10 +138,12 @@ def enrich_lead(
     if not fetch_result.get("ok"):
         if cfg.get("discover_with_serper", True):
             company_name = str(enriched.get("company_name") or "").strip()
-            discovered = discover_company_website(
+            discovered = _discover_website_with_controls(
                 company_name=company_name,
                 serper_api_key=os.getenv("SERPER_API_KEY"),
                 timeout_seconds=serper_timeout_seconds,
+                request_executor=serper_executor if callable(serper_executor) else None,
+                retry_cfg=serper_retry_cfg if isinstance(serper_retry_cfg, ProviderRetryConfig) else ProviderRetryConfig(),
             )
             if discovered and discovered != website:
                 enriched["website"] = discovered

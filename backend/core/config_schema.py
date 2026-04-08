@@ -23,7 +23,17 @@ _WEBSITE_KEYS = {
 }
 _GOOGLE_KEYS = {"enabled", "timeout_seconds", "max_retries", "min_name_match_score", "region", "language"}
 _SCORING_KEYS = {"enabled", "base_score", "weights"}
-_RUNTIME_KEYS = {"batch_size", "stop_on_batch_error"}
+_RUNTIME_KEYS = {"batch_size", "stop_on_batch_error", "worker_concurrency", "providers"}
+_RUNTIME_PROVIDERS_KEYS = {"google_maps", "serper"}
+_RUNTIME_PROVIDER_KEYS = {
+    "enabled",
+    "requests_per_second",
+    "burst",
+    "max_concurrent",
+    "timeout_seconds",
+    "retry",
+}
+_RUNTIME_RETRY_KEYS = {"max_attempts", "base_delay_ms", "max_delay_ms", "jitter_ms"}
 _WEIGHTS_KEYS = {
     "contact_quality_verified",
     "contact_quality_likely",
@@ -80,6 +90,12 @@ def _ensure_number(value: Any, ctx: str) -> None:
 def _ensure_int(value: Any, ctx: str) -> None:
     if not isinstance(value, int) or isinstance(value, bool):
         raise _err(f"{ctx} must be an integer")
+
+
+def _ensure_positive_number(value: Any, ctx: str) -> None:
+    _ensure_number(value, ctx)
+    if float(value) <= 0:
+        raise _err(f"{ctx} must be > 0")
 
 
 def validate_sources_config(sources_cfg: dict[str, Any]) -> dict[str, Any]:
@@ -157,5 +173,55 @@ def validate_sources_config(sources_cfg: dict[str, Any]) -> dict[str, Any]:
                 raise _err("runtime.batch_size must be between 10 and 2000")
         if "stop_on_batch_error" in r_cfg:
             _ensure_bool(r_cfg["stop_on_batch_error"], "runtime.stop_on_batch_error")
+        if "worker_concurrency" in r_cfg:
+            _ensure_int(r_cfg["worker_concurrency"], "runtime.worker_concurrency")
+            if int(r_cfg["worker_concurrency"]) < 1 or int(r_cfg["worker_concurrency"]) > 64:
+                raise _err("runtime.worker_concurrency must be between 1 and 64")
+        if "providers" in r_cfg:
+            providers = _ensure_obj(r_cfg["providers"], "runtime.providers")
+            _check_unknown_keys(providers, _RUNTIME_PROVIDERS_KEYS, "runtime.providers")
+            for provider_name, provider_cfg_raw in providers.items():
+                provider_cfg = _ensure_obj(provider_cfg_raw, f"runtime.providers.{provider_name}")
+                _check_unknown_keys(
+                    provider_cfg,
+                    _RUNTIME_PROVIDER_KEYS,
+                    f"runtime.providers.{provider_name}",
+                )
+                if "enabled" in provider_cfg:
+                    _ensure_bool(provider_cfg["enabled"], f"runtime.providers.{provider_name}.enabled")
+                if "requests_per_second" in provider_cfg:
+                    _ensure_positive_number(
+                        provider_cfg["requests_per_second"],
+                        f"runtime.providers.{provider_name}.requests_per_second",
+                    )
+                for int_key in ("burst", "max_concurrent", "timeout_seconds"):
+                    if int_key in provider_cfg:
+                        _ensure_int(
+                            provider_cfg[int_key],
+                            f"runtime.providers.{provider_name}.{int_key}",
+                        )
+                        if int(provider_cfg[int_key]) < 1:
+                            raise _err(
+                                f"runtime.providers.{provider_name}.{int_key} must be >= 1"
+                            )
+                if "retry" in provider_cfg:
+                    retry_cfg = _ensure_obj(
+                        provider_cfg["retry"], f"runtime.providers.{provider_name}.retry"
+                    )
+                    _check_unknown_keys(
+                        retry_cfg,
+                        _RUNTIME_RETRY_KEYS,
+                        f"runtime.providers.{provider_name}.retry",
+                    )
+                    for retry_key in _RUNTIME_RETRY_KEYS:
+                        if retry_key in retry_cfg:
+                            _ensure_int(
+                                retry_cfg[retry_key],
+                                f"runtime.providers.{provider_name}.retry.{retry_key}",
+                            )
+                            if int(retry_cfg[retry_key]) < 0:
+                                raise _err(
+                                    f"runtime.providers.{provider_name}.retry.{retry_key} must be >= 0"
+                                )
 
     return cfg

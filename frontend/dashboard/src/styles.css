@@ -447,6 +447,17 @@ button:disabled {
   gap: 12px;
 }
 
+.settings-name-field {
+  min-width: min(360px, 100%);
+}
+
+.settings-name-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
 .table-wrap {
   overflow-x: auto;
   max-width: 100%;
@@ -463,6 +474,18 @@ table {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.settings-editor {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(99, 125, 227, 0.5);
+  background: rgba(11, 20, 48, 0.92);
+  color: #dce7ff;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  resize: vertical;
 }
 
 th,
@@ -680,6 +703,75 @@ pre {
 
   .job-history-table td .pill {
     transform: translateY(-1px);
+  }
+
+  .explorer-table,
+  .settings-profiles-table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    font-size: 13px;
+  }
+
+  .explorer-table thead,
+  .settings-profiles-table thead {
+    display: none;
+  }
+
+  .explorer-table tbody,
+  .explorer-table tr,
+  .explorer-table td,
+  .settings-profiles-table tbody,
+  .settings-profiles-table tr,
+  .settings-profiles-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .explorer-table tr,
+  .settings-profiles-table tr {
+    border: 1px solid rgba(102, 128, 222, 0.3);
+    border-radius: 12px;
+    background: rgba(10, 18, 45, 0.75);
+    padding: 8px 10px;
+  }
+
+  .explorer-table td,
+  .settings-profiles-table td {
+    border-bottom: none;
+    padding: 6px 4px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .explorer-table td::before,
+  .settings-profiles-table td::before {
+    content: attr(data-label);
+    display: inline-block;
+    min-width: 76px;
+    margin-right: 10px;
+    color: #8fa5e8;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .profile-actions {
+    display: flex !important;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .profile-actions::before {
+    width: 100%;
+    margin-right: 0;
+    margin-bottom: 4px;
+  }
+
+  .profile-actions button {
+    margin-left: 0 !important;
   }
 }
 

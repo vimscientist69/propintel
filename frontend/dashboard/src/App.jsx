@@ -718,7 +718,7 @@ export function App() {
               </div>
             </div>
             <div className="table-wrap">
-              <table>
+              <table className="explorer-table">
                 <thead>
                   <tr>
                     <th>Company</th>
@@ -734,12 +734,12 @@ export function App() {
                     .filter((row) => Number(row.lead_score || 0) >= Number(minScore || 0))
                     .map((row, idx) => (
                       <tr key={`${row.company_name || "row"}-${idx}`}>
-                        <td>{row.company_name || ""}</td>
-                        <td><span className={`pill pill-${row.contact_quality || "unknown"}`}>{row.contact_quality || "unknown"}</span></td>
-                        <td>{row.website || ""}</td>
-                        <td>{row.email || ""}</td>
-                        <td>{row.phone || ""}</td>
-                        <td>{row.lead_score ?? ""}</td>
+                        <td data-label="Company">{row.company_name || ""}</td>
+                        <td data-label="Status"><span className={`pill pill-${row.contact_quality || "unknown"}`}>{row.contact_quality || "unknown"}</span></td>
+                        <td data-label="Website">{row.website || ""}</td>
+                        <td data-label="Email">{row.email || ""}</td>
+                        <td data-label="Phone">{row.phone || ""}</td>
+                        <td data-label="Score">{row.lead_score ?? ""}</td>
                       </tr>
                     ))}
                 </tbody>
@@ -757,37 +757,30 @@ export function App() {
               </div>
             </div>
             <div className="filters">
-              <div className="field compact">
+              <div className="field compact settings-name-field">
                 <label htmlFor="settingsName">Profile name</label>
                 <input
                   id="settingsName"
                   value={settingsName}
                   onChange={(e) => setSettingsName(e.target.value)}
                 />
+                <div className="settings-name-actions">
+                  <button type="button" onClick={validateSettings}>Validate</button>
+                  <button type="button" onClick={saveSettings}>Save + Activate</button>
+                </div>
               </div>
-              <button type="button" onClick={validateSettings}>Validate</button>
-              <button type="button" onClick={saveSettings}>Save + Activate</button>
             </div>
             <textarea
+              className="settings-editor"
               value={settingsPayloadText}
               onChange={(e) => setSettingsPayloadText(e.target.value)}
               rows={14}
-              style={{
-                width: "100%",
-                borderRadius: "10px",
-                border: "1px solid rgba(99,125,227,.5)",
-                background: "rgba(11,20,48,.92)",
-                color: "#dce7ff",
-                padding: "12px",
-                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                fontSize: "13px",
-              }}
             />
             <p className="muted">{settingsStatus}</p>
             <details className="rejected" open>
               <summary>Profiles</summary>
               <div className="table-wrap">
-                <table>
+                <table className="settings-profiles-table">
                   <thead>
                     <tr>
                       <th>Name</th>
@@ -806,14 +799,14 @@ export function App() {
                     )}
                     {settingsProfiles.map((profile) => (
                       <tr key={profile.name}>
-                        <td className="mono">{profile.name}</td>
-                        <td>
+                        <td className="mono" data-label="Name">{profile.name}</td>
+                        <td data-label="Active">
                           <span className={`pill ${profile.is_active ? "pill-completed" : ""}`}>
                             {profile.is_active ? "active" : "inactive"}
                           </span>
                         </td>
-                        <td>{profile.updated_at || "-"}</td>
-                        <td>
+                        <td data-label="Updated">{profile.updated_at || "-"}</td>
+                        <td data-label="Action" className="profile-actions">
                           <button
                             type="button"
                             className="ghost"

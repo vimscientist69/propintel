@@ -686,6 +686,7 @@ def summarize_job_batches(db_path: str | Path, *, job_id: str) -> dict[str, int]
     if not db_path.exists():
         return {
             "batches_total": 0,
+            "batches_started": 0,
             "batches_completed": 0,
             "rows_total": 0,
             "rows_processed": 0,
@@ -698,6 +699,7 @@ def summarize_job_batches(db_path: str | Path, *, job_id: str) -> dict[str, int]
                 """
                 SELECT
                     COUNT(1) AS batches_total,
+                    SUM(CASE WHEN status IN ('processing', 'completed', 'failed', 'terminated') THEN 1 ELSE 0 END) AS batches_started,
                     SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS batches_completed,
                     SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_batches,
                     SUM(end_row - start_row) AS rows_total,
@@ -710,6 +712,7 @@ def summarize_job_batches(db_path: str | Path, *, job_id: str) -> dict[str, int]
             if row is None:
                 return {
                     "batches_total": 0,
+                    "batches_started": 0,
                     "batches_completed": 0,
                     "rows_total": 0,
                     "rows_processed": 0,
@@ -717,6 +720,7 @@ def summarize_job_batches(db_path: str | Path, *, job_id: str) -> dict[str, int]
                 }
             return {
                 "batches_total": int(row["batches_total"] or 0),
+                "batches_started": int(row["batches_started"] or 0),
                 "batches_completed": int(row["batches_completed"] or 0),
                 "rows_total": int(row["rows_total"] or 0),
                 "rows_processed": int(row["rows_processed"] or 0),

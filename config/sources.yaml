@@ -124,3 +124,7 @@ sources:
       google_maps_source_bonus: 5
       has_location_bonus: 3
       has_agent_name_bonus: 2
+
+  runtime:
+    batch_size: 10
+    stop_on_batch_error: false

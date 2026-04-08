@@ -173,14 +173,39 @@ body {
 .progress-line {
   height: 6px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #45d3ff, #6a52ff 45%, #2b335e 45%);
+  position: relative;
+  overflow: hidden;
+  background: #2b335e;
   margin-bottom: 4px;
 }
+.progress-started {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  background: linear-gradient(90deg, #4575d6, #5e63b3);
+  opacity: 0.7;
+  transition: width 180ms ease;
+}
+.progress-completed {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  background: linear-gradient(90deg, #45d3ff, #6a52ff);
+  transition: width 180ms ease;
+}
 .progress-line.completed {
-  background: linear-gradient(90deg, #41e7b3, #49d8e0 100%);
+  background: #254b45;
+}
+.progress-line.completed .progress-started,
+.progress-line.completed .progress-completed {
+  background: linear-gradient(90deg, #41e7b3, #49d8e0);
 }
 .progress-line.failed {
-  background: linear-gradient(90deg, #ff8aa0, #a04f86 100%);
+  background: #4d2a3a;
+}
+.progress-line.failed .progress-started,
+.progress-line.failed .progress-completed {
+  background: linear-gradient(90deg, #ff8aa0, #a04f86);
 }
 
 .progress-wrap small {

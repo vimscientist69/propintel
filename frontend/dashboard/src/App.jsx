@@ -24,6 +24,9 @@ export function App() {
   const [activeJobId, setActiveJobId] = useState("");
   const [activeJobStatus, setActiveJobStatus] = useState("");
   const [activeJobMeta, setActiveJobMeta] = useState("Select a job to load details.");
+  const [activeBatchesStarted, setActiveBatchesStarted] = useState(0);
+  const [activeBatchesCompleted, setActiveBatchesCompleted] = useState(0);
+  const [activeBatchesTotal, setActiveBatchesTotal] = useState(0);
   const [rejectedRows, setRejectedRows] = useState([]);
   const [leads, setLeads] = useState([]);
   const [uploadStatus, setUploadStatus] = useState("");
@@ -79,11 +82,15 @@ export function App() {
         const status = await api(`/jobs/${activeJobId}`);
         if (cancelled) return;
         setActiveJobStatus(status.status || "");
-        const batchProgress = `${status.batches_completed || 0}/${status.batches_total || 0}`;
+        setActiveBatchesStarted(Number(status.batches_started || 0));
+        setActiveBatchesCompleted(Number(status.batches_completed || 0));
+        setActiveBatchesTotal(Number(status.batches_total || 0));
+        const batchProgress = `${status.batches_started || 0}/${status.batches_total || 0}`;
         setActiveJobMeta(
-          `status=${status.status} batches=${batchProgress} rows=${status.rows_processed || 0}/${status.rows_total || 0} error=${status.error || "none"}`,
+          `status=${status.status} batches_started=${batchProgress} batches_completed=${status.batches_completed || 0}/${status.batches_total || 0} rows=${status.rows_processed || 0}/${status.rows_total || 0} error=${status.error || "none"}`,
         );
         if (status.status === "processing" || status.status === "uploaded") {
+          await loadJobs();
           timeoutId = setTimeout(poll, 2500);
           return;
         }
@@ -189,6 +196,10 @@ export function App() {
   const recentJobs = jobs.slice(0, 6);
   const activeJob = jobs.find((j) => j.job_id === activeJobId);
   const statusTone = activeJob?.status || "idle";
+  const startedPct =
+    activeBatchesTotal > 0 ? Math.min(100, Math.round((activeBatchesStarted / activeBatchesTotal) * 100)) : 0;
+  const completedPct =
+    activeBatchesTotal > 0 ? Math.min(100, Math.round((activeBatchesCompleted / activeBatchesTotal) * 100)) : 0;
   const canTerminate = activeJobId && (activeJobStatus === "processing" || activeJobStatus === "uploaded");
   const canResume = activeJobId && (activeJobStatus === "failed" || activeJobStatus === "terminated");
 
@@ -378,7 +389,10 @@ export function App() {
               <span className={`telemetry telemetry-${statusTone}`}>{isSubmitting ? "Running" : "Idle"}</span>
             </div>
             <div className="progress-wrap">
-              <div className={`progress-line ${statusTone}`} />
+              <div className={`progress-line ${statusTone}`}>
+                <div className="progress-started" style={{ width: `${startedPct}%` }} />
+                <div className="progress-completed" style={{ width: `${completedPct}%` }} />
+              </div>
               <small>{activeJobMeta}</small>
             </div>
             <form className="control-form" onSubmit={onSubmit}>

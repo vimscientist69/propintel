@@ -19,12 +19,12 @@ body {
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 1fr;
 }
 
 .sidebar {
-  border-right: 1px solid rgba(117, 144, 255, 0.18);
-  padding: 18px 14px;
+  border-bottom: 1px solid rgba(117, 144, 255, 0.18);
+  padding: 12px;
   background: rgba(2, 7, 30, 0.7);
 }
 
@@ -32,7 +32,7 @@ body {
   display: flex;
   gap: 10px;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .brand-dot {
@@ -55,17 +55,20 @@ body {
 }
 
 .nav {
-  display: grid;
-  gap: 7px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .nav-item {
-  text-align: left;
+  text-align: center;
   border: 1px solid transparent;
   background: transparent;
   color: #9db0ec;
   border-radius: 8px;
-  padding: 9px 10px;
+  padding: 8px 10px;
+  white-space: nowrap;
 }
 
 .nav-item.active,
@@ -76,13 +79,15 @@ body {
 }
 
 .main {
-  padding: 24px 28px 30px;
-  max-width: 1280px;
+  width: 100%;
+  padding: 14px;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 .header h1 {
   margin: 10px 0 6px;
-  font-size: 42px;
+  font-size: 30px;
   line-height: 1.05;
   letter-spacing: -0.02em;
 }
@@ -90,7 +95,7 @@ body {
 .header p {
   margin: 0 0 20px;
   color: #8ea4e8;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .status-chip {
@@ -104,7 +109,7 @@ body {
 
 .top-grid {
   display: grid;
-  grid-template-columns: 1.25fr 0.75fr;
+  grid-template-columns: 1fr;
   gap: 14px;
   align-items: stretch;
 }
@@ -113,7 +118,7 @@ body {
   border: 1px solid rgba(98, 126, 230, 0.34);
   border-radius: 14px;
   background: linear-gradient(180deg, rgba(12, 22, 54, 0.86), rgba(5, 11, 32, 0.95));
-  padding: 16px 18px;
+  padding: 14px;
   margin-bottom: 14px;
   box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
   display: flex;
@@ -123,15 +128,16 @@ body {
 
 .panel-head {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
   align-items: flex-start;
+  flex-direction: column;
   margin-bottom: 0;
 }
 
 .panel h2 {
   margin: 0 0 3px;
-  font-size: 34px;
+  font-size: 28px;
   line-height: 1.1;
   letter-spacing: -0.02em;
   font-weight: 700;
@@ -139,7 +145,7 @@ body {
 
 .panel p {
   margin: 0;
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.45;
   color: #8da3e9;
 }
@@ -224,7 +230,7 @@ body {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 180px minmax(340px, 1fr);
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
@@ -254,6 +260,10 @@ body {
   gap: 10px;
   margin-top: 0;
   flex-wrap: wrap;
+}
+
+.actions-row button {
+  flex: 1 1 140px;
 }
 
 label {
@@ -332,7 +342,7 @@ button:disabled {
 
 .job-list-item {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr;
   gap: 10px;
   width: 100%;
   text-align: left;
@@ -379,8 +389,9 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 340px;
+  min-width: 0;
   max-width: 100%;
+  width: 100%;
   border: 1px solid rgba(99, 125, 227, 0.5);
   border-radius: 10px;
   padding: 6px 8px;
@@ -421,7 +432,8 @@ button:disabled {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 13px;
+  min-width: 780px;
 }
 
 th,
@@ -526,30 +538,96 @@ pre {
 }
 
 @media (max-width: 1100px) {
-  .app-shell {
-    grid-template-columns: 1fr;
-  }
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid rgba(117, 144, 255, 0.18);
-  }
-  .top-grid {
-    grid-template-columns: 1fr;
-  }
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
   .main {
-    padding: 18px;
+    padding: 16px;
   }
+}
+
+@media (min-width: 768px) {
+  .sidebar {
+    padding: 14px 16px;
+  }
+
   .header h1 {
-    font-size: 34px;
+    font-size: 36px;
   }
-  .panel h2 {
-    font-size: 24px;
-  }
-  .panel p,
+
   .header p {
-    font-size: 15px;
+    font-size: 16px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .panel-head {
+    justify-content: space-between;
+    flex-direction: row;
+  }
+
+  .panel h2 {
+    font-size: 30px;
+  }
+
+  .form-grid {
+    grid-template-columns: 170px minmax(0, 1fr);
+  }
+
+  .job-list-item {
+    grid-template-columns: 1fr auto auto;
+  }
+
+  .actions-row button {
+    flex: 0 0 auto;
+  }
+}
+
+@media (min-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 240px 1fr;
+  }
+
+  .sidebar {
+    border-bottom: none;
+    border-right: 1px solid rgba(117, 144, 255, 0.18);
+    padding: 18px 14px;
+  }
+
+  .brand {
+    margin-bottom: 20px;
+  }
+
+  .nav {
+    display: grid;
+    gap: 7px;
+    overflow: visible;
+  }
+
+  .nav-item {
+    text-align: left;
+  }
+
+  .main {
+    padding: 24px 28px 30px;
+  }
+
+  .header h1 {
+    font-size: 42px;
+  }
+
+  .header p {
+    font-size: 18px;
+  }
+
+  .top-grid {
+    grid-template-columns: 1.25fr 0.75fr;
+  }
+
+  .panel {
+    padding: 16px 18px;
+  }
+
+  .panel h2 {
+    font-size: 34px;
   }
 }

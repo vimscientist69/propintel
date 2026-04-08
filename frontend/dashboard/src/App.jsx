@@ -62,6 +62,12 @@ export function App() {
   }, [activeTab]);
 
   useEffect(() => {
+    if (activeTab === "explorer" && explorerJobId) {
+      loadExplorerRows();
+    }
+  }, [activeTab, explorerJobId]);
+
+  useEffect(() => {
     if (!activeJobId) {
       return undefined;
     }
@@ -651,7 +657,7 @@ export function App() {
                 <p>Search and inspect lead rows for a selected job.</p>
               </div>
               <button type="button" className="ghost" onClick={loadExplorerRows}>
-                Load rows
+                Reload
               </button>
             </div>
             <div className="filters">

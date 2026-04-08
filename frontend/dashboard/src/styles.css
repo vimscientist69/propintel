@@ -14,6 +14,28 @@ body {
   background: radial-gradient(circle at top right, #111f49 0%, #04081b 45%, #020512 100%);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 152, 244, 0.55) rgba(14, 23, 56, 0.5);
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(14, 23, 56, 0.45);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(141, 167, 255, 0.75), rgba(96, 114, 214, 0.75));
+  border-radius: 999px;
+  border: 2px solid rgba(10, 18, 46, 0.75);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(163, 186, 255, 0.9), rgba(112, 132, 236, 0.9));
 }
 
 .app-shell {
@@ -427,6 +449,7 @@ button:disabled {
 
 .table-wrap {
   overflow-x: auto;
+  max-width: 100%;
 }
 
 table {
@@ -434,6 +457,12 @@ table {
   border-collapse: collapse;
   font-size: 13px;
   min-width: 780px;
+}
+
+.job-history-table td:last-child {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 th,
@@ -453,6 +482,7 @@ thead th {
 
 .latest-listings-table {
   table-layout: fixed;
+  min-width: 0;
 }
 
 .latest-listings-table th,
@@ -491,6 +521,13 @@ thead th {
 .email-cell,
 .website-cell {
   color: #adc0ff;
+}
+
+.panel-job-id {
+  max-width: min(100%, 520px);
+  text-align: right;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .empty-row {
   text-align: center;
@@ -579,6 +616,120 @@ pre {
 
   .actions-row button {
     flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 900px) {
+  .panel-job-id {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .latest-listings-table {
+    table-layout: auto;
+    min-width: 640px;
+  }
+
+  .latest-listings-table th,
+  .latest-listings-table td {
+    width: auto !important;
+  }
+}
+
+@media (max-width: 980px) {
+  .job-history-table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 10px;
+    font-size: 13px;
+  }
+
+  .job-history-table thead {
+    display: none;
+  }
+
+  .job-history-table tbody,
+  .job-history-table tr,
+  .job-history-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .job-history-table tr {
+    border: 1px solid rgba(102, 128, 222, 0.3);
+    border-radius: 12px;
+    background: rgba(10, 18, 45, 0.75);
+    padding: 8px 10px;
+  }
+
+  .job-history-table td {
+    border-bottom: none;
+    padding: 6px 4px;
+  }
+
+  .job-history-table td::before {
+    content: attr(data-label);
+    display: inline-block;
+    min-width: 76px;
+    margin-right: 10px;
+    color: #8fa5e8;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .job-history-table td .pill {
+    transform: translateY(-1px);
+  }
+}
+
+@media (max-width: 725px) {
+  .latest-listings-table {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .latest-listings-table th,
+  .latest-listings-table td {
+    padding: 8px 6px;
+  }
+
+  .latest-listings-table .col-website,
+  .latest-listings-table .col-phone,
+  .latest-listings-table .col-reason {
+    display: none;
+  }
+
+  .latest-listings-table .col-listing {
+    width: 34% !important;
+  }
+
+  .latest-listings-table .col-status {
+    width: 20% !important;
+  }
+
+  .latest-listings-table .col-email {
+    width: 28% !important;
+  }
+
+  .latest-listings-table .col-score {
+    width: 18% !important;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 625px) {
+  .nav {
+    flex-wrap: wrap;
+    overflow: visible;
+    justify-content: center;
+    row-gap: 10px;
+    column-gap: 8px;
+    padding-bottom: 0;
+  }
+
+  .nav-item {
+    flex: 0 1 auto;
   }
 }
 

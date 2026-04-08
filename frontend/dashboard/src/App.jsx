@@ -500,7 +500,7 @@ export function App() {
               <h2>Latest Listings</h2>
               <p>Filtered lead intelligence grid for the selected job.</p>
             </div>
-            <span className="mono">{activeJobId || "none selected"}</span>
+            <span className="mono panel-job-id">{activeJobId || "none selected"}</span>
           </div>
 
           <div className="filters">
@@ -553,13 +553,13 @@ export function App() {
             <table className="latest-listings-table">
               <thead>
                 <tr>
-                  <th>Listing</th>
-                  <th>Status</th>
-                  <th>Website</th>
-                  <th>Email</th>
-                  <th>Phone</th>
-                  <th>Score</th>
-                  <th>Reason</th>
+                  <th className="col-listing">Listing</th>
+                  <th className="col-status">Status</th>
+                  <th className="col-website">Website</th>
+                  <th className="col-email">Email</th>
+                  <th className="col-phone">Phone</th>
+                  <th className="col-score">Score</th>
+                  <th className="col-reason">Reason</th>
                 </tr>
               </thead>
               <tbody>
@@ -572,17 +572,17 @@ export function App() {
                 )}
                 {filteredLeads.map((lead, idx) => (
                   <tr key={`${lead.company_name || "row"}-${idx}`}>
-                    <td>{lead.company_name || ""}</td>
-                    <td>
+                    <td className="col-listing">{lead.company_name || ""}</td>
+                    <td className="col-status">
                       <span className={`pill pill-${lead.contact_quality || "unknown"}`}>
                         {lead.contact_quality || "unknown"}
                       </span>
                     </td>
-                    <td className="cell-wrap website-cell">{lead.website || ""}</td>
-                    <td className="cell-wrap email-cell">{lead.email || ""}</td>
-                    <td className="cell-wrap phone-cell">{lead.phone || ""}</td>
-                    <td>{lead.lead_score ?? ""}</td>
-                    <td className="cell-wrap reason-cell">{lead.lead_reason || ""}</td>
+                    <td className="cell-wrap website-cell col-website">{lead.website || ""}</td>
+                    <td className="cell-wrap email-cell col-email">{lead.email || ""}</td>
+                    <td className="cell-wrap phone-cell col-phone">{lead.phone || ""}</td>
+                    <td className="col-score">{lead.lead_score ?? ""}</td>
+                    <td className="cell-wrap reason-cell col-reason">{lead.lead_reason || ""}</td>
                   </tr>
                 ))}
               </tbody>
@@ -656,7 +656,7 @@ export function App() {
             </div>
             {isLoadingJobs && <p className="muted">Loading jobs...</p>}
             <div className="table-wrap">
-              <table>
+              <table className="job-history-table">
                 <thead>
                   <tr>
                     <th>Job ID</th>
@@ -669,11 +669,11 @@ export function App() {
                 <tbody>
                   {jobs.map((job) => (
                     <tr key={job.job_id}>
-                      <td className="mono">{job.job_id}</td>
-                      <td><span className={`pill pill-${job.status}`}>{job.status}</span></td>
-                      <td>{job.input_format || "-"}</td>
-                      <td>{job.created_at || "-"}</td>
-                      <td>{job.counts ? JSON.stringify(job.counts) : "-"}</td>
+                      <td className="mono" data-label="Job ID">{job.job_id}</td>
+                      <td data-label="Status"><span className={`pill pill-${job.status}`}>{job.status}</span></td>
+                      <td data-label="Format">{job.input_format || "-"}</td>
+                      <td data-label="Created">{job.created_at || "-"}</td>
+                      <td data-label="Counts">{job.counts ? JSON.stringify(job.counts) : "-"}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -270,6 +270,20 @@ export function App() {
     }
   };
 
+  const activateProfile = async (name) => {
+    try {
+      await api("/settings/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      setSettingsStatus(`Activated profile: ${name}`);
+      await loadSettings();
+    } catch (err) {
+      setSettingsStatus(`Activate failed: ${err.message}`);
+    }
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -705,9 +719,50 @@ export function App() {
               }}
             />
             <p className="muted">{settingsStatus}</p>
-            <details className="rejected">
+            <details className="rejected" open>
               <summary>Profiles</summary>
-              <pre>{JSON.stringify(settingsProfiles, null, 2)}</pre>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Active</th>
+                      <th>Updated</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {settingsProfiles.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="empty-row">
+                          No profiles saved yet.
+                        </td>
+                      </tr>
+                    )}
+                    {settingsProfiles.map((profile) => (
+                      <tr key={profile.name}>
+                        <td className="mono">{profile.name}</td>
+                        <td>
+                          <span className={`pill ${profile.is_active ? "pill-completed" : ""}`}>
+                            {profile.is_active ? "active" : "inactive"}
+                          </span>
+                        </td>
+                        <td>{profile.updated_at || "-"}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={profile.is_active}
+                            onClick={() => activateProfile(profile.name)}
+                          >
+                            Activate
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </details>
           </section>
         )}

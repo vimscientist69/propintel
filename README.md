@@ -238,78 +238,66 @@ CI workflow is included at `.github/workflows/ci.yml` for backend tests + fronte
 
 ## Run Locally with Docker
 
-This runs the same split architecture used in Fly deployment:
-- backend container (`propintel-api`) on internal Docker network only
-- frontend container (`propintel-web`) exposed on localhost
+This runs backend and frontend as separate containers with the frontend calling the backend via `VITE_API_BASE_URL`.
 
 ### 1) Build images
 
 ```bash
 docker build -f deploy/fly/backend.Dockerfile -t propintel-api:local .
-docker build -f deploy/fly/frontend.Dockerfile -t propintel-web:local .
+docker build -f deploy/fly/frontend.Dockerfile \
+  --build-arg VITE_API_BASE_URL=http://localhost:8000 \
+  -t propintel-web:local .
 ```
 
-### 2) Create a Docker network
-
-```bash
-docker network create propintel-net
-```
-
-### 3) Run backend (internal only)
+### 2) Run backend (public on localhost:8000)
 
 ```bash
 docker run -d \
   --name propintel-api \
-  --network propintel-net \
+  -p 8000:8000 \
   --env-file .env \
   -v "$(pwd)/data:/app/data" \
   propintel-api:local
 ```
 
-### 4) Run frontend (public)
+### 3) Run frontend (public on localhost:8080)
 
 ```bash
 docker run -d \
   --name propintel-web \
-  --network propintel-net \
-  -e BACKEND_UPSTREAM=propintel-api:8000 \
   -p 8080:8080 \
   propintel-web:local
 ```
 
 Open: `http://localhost:8080`
 
-### 5) Stop and clean up
+### 4) Stop and clean up
 
 ```bash
 docker rm -f propintel-web propintel-api
-docker network rm propintel-net
 ```
 
 Notes:
-- `deploy/fly/nginx.conf` routes `/jobs`, `/settings`, and `/health` to `propintel-api`.
-- Frontend image supports `BACKEND_UPSTREAM`; for local Docker use `propintel-api:8000`.
-- If you changed nginx-related files, rebuild `propintel-web:local` before re-running.
+- `VITE_API_BASE_URL` is compile-time for Vite; rebuild frontend image when backend URL changes.
 - Keep `.env` local only; do not commit secrets.
 
 ---
 
 ## Deployment (Fly.io)
 
-Deployment is configured for a **two-app Fly.io topology**:
+Deployment is configured for **two public Fly.io apps**:
 - `propintel-web` (public): serves the React dashboard
-- `propintel-api` (private/internal): serves FastAPI + SQLite
+- `propintel-api` (public): serves FastAPI + SQLite
 
-The frontend app reverse-proxies `/jobs`, `/settings`, and `/health` to the internal backend host.
+Frontend uses `VITE_API_BASE_URL` at build time to call the public backend API.
 
 Deployment assets:
 - `deploy/fly/backend.Dockerfile`
 - `deploy/fly/frontend.Dockerfile`
-- `deploy/fly/nginx.conf`
 - `deploy/fly/backend.fly.toml`
 - `deploy/fly/frontend.fly.toml`
 
-### 1) Backend app (internal)
+### 1) Backend app
 
 ```bash
 # Create app (one-time)
@@ -325,18 +313,14 @@ fly secrets set SERPER_API_KEY=... GOOGLE_MAPS_API_KEY=... -a propintel-api
 fly deploy -c deploy/fly/backend.fly.toml
 ```
 
-After first deploy, remove any public IPs from backend so it remains internal-only:
-
-```bash
-fly ips list -a propintel-api
-fly ips release <IP_ADDRESS> -a propintel-api
-```
-
 ### 2) Frontend app (public)
 
 ```bash
 # Create app (one-time)
 fly apps create propintel-web
+
+# Optional: set explicit backend URL for this frontend app build
+# fly secrets set VITE_API_BASE_URL=https://propintel-api.fly.dev -a propintel-web
 
 # Deploy frontend
 fly deploy -c deploy/fly/frontend.fly.toml
@@ -344,10 +328,9 @@ fly deploy -c deploy/fly/frontend.fly.toml
 
 ### Important notes
 
-- Frontend app uses `BACKEND_UPSTREAM` (set in `deploy/fly/frontend.fly.toml`) and defaults to `propintel-api:8000` in local Docker.
-- Fly deployment sets `BACKEND_UPSTREAM=propintel-api.internal:8000`.
-- If you rename the backend Fly app, update `BACKEND_UPSTREAM` in `deploy/fly/frontend.fly.toml`.
-- Frontend does not require public API URL env var in this topology; browser calls same-origin paths, nginx proxies internally.
+- `deploy/fly/frontend.fly.toml` currently builds with `VITE_API_BASE_URL=https://propintel-api.fly.dev`.
+- If backend app domain changes, update `build.args.VITE_API_BASE_URL` and redeploy frontend.
+- Restrict backend CORS to your frontend domain(s) in production settings.
 
 ---
 

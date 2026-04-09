@@ -14,6 +14,7 @@ app.add_middleware(
     allow_origins=[
         "http://127.0.0.1:5173",
         "http://localhost:5173",
+        "https://propintel-web.fly.dev",
     ],
     allow_credentials=True,
     allow_methods=["*"],

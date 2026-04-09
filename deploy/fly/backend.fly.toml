@@ -2,7 +2,7 @@ app = "propintel-api"
 primary_region = "jnb"
 
 [build]
-  dockerfile = "deploy/fly/backend.Dockerfile"
+  dockerfile = "backend.Dockerfile"
 
 [env]
   PORT = "8000"

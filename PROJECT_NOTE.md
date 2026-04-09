@@ -305,7 +305,7 @@ The final project must include:
 - clean structured output
 - sample dataset
 - README with usage instructions
-- deployed version (Fly.io: frontend public, backend internal)
+- deployed version (Fly.io: frontend + backend)
 
 ---
 
@@ -397,12 +397,11 @@ The final project must include:
 - URL state for filters/pagination so views are shareable.
 
 #### 7) Deployment plan
-- Deploy on Fly.io with network split:
-  - Frontend service exposed publicly (external port)
-  - Backend service private/internal-only (Fly private network)
-- Frontend calls backend via internal Fly service URL/reverse-proxy path.
-- Keep backend port unexposed to the public internet.
-- Configure API base URL via env on frontend and strict CORS for frontend origin only.
+- Deploy on Fly.io as two services:
+  - Frontend service exposed publicly
+  - Backend API exposed publicly
+- Configure frontend build with `VITE_API_BASE_URL` to backend Fly URL.
+- Configure strict CORS for frontend origin only.
 - Persist SQLite volume on backend Fly app.
 
 #### 8) Testing and acceptance

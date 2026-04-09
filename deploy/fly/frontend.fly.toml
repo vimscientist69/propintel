@@ -2,10 +2,9 @@ app = "propintel-web"
 primary_region = "jnb"
 
 [build]
-  dockerfile = "deploy/fly/frontend.Dockerfile"
-
-[env]
-  BACKEND_UPSTREAM = "propintel-api.internal:8000"
+  dockerfile = "frontend.Dockerfile"
+  [build.args]
+    VITE_API_BASE_URL = "https://propintel-api.fly.dev"
 
 [http_service]
   internal_port = 8080

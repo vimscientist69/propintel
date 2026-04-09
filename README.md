@@ -236,6 +236,61 @@ CI workflow is included at `.github/workflows/ci.yml` for backend tests + fronte
 
 ---
 
+## Run Locally with Docker
+
+This runs the same split architecture used in Fly deployment:
+- backend container (`propintel-api`) on internal Docker network only
+- frontend container (`propintel-web`) exposed on localhost
+
+### 1) Build images
+
+```bash
+docker build -f deploy/fly/backend.Dockerfile -t propintel-api:local .
+docker build -f deploy/fly/frontend.Dockerfile -t propintel-web:local .
+```
+
+### 2) Create a Docker network
+
+```bash
+docker network create propintel-net
+```
+
+### 3) Run backend (internal only)
+
+```bash
+docker run -d \
+  --name propintel-api \
+  --network propintel-net \
+  --env-file .env \
+  -v "$(pwd)/data:/app/data" \
+  propintel-api:local
+```
+
+### 4) Run frontend (public)
+
+```bash
+docker run -d \
+  --name propintel-web \
+  --network propintel-net \
+  -p 8080:8080 \
+  propintel-web:local
+```
+
+Open: `http://localhost:8080`
+
+### 5) Stop and clean up
+
+```bash
+docker rm -f propintel-web propintel-api
+docker network rm propintel-net
+```
+
+Notes:
+- `deploy/fly/nginx.conf` routes `/jobs`, `/settings`, and `/health` to `propintel-api`.
+- Keep `.env` local only; do not commit secrets.
+
+---
+
 ## Deployment (Fly.io)
 
 Deployment is configured for a **two-app Fly.io topology**:

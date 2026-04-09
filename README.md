@@ -1,5 +1,7 @@
 # 🧠 PropIntel
 
+<img width="1864" height="989" alt="image" src="https://github.com/user-attachments/assets/9589bad9-e0a9-42eb-ab22-aa63d58ce699" />
+
 PropIntel is a production-style **real estate lead intelligence platform** that ingests raw lead datasets, enriches them from external sources, verifies contact quality, and ranks lead readiness for outreach.
 
 Built as a portfolio project to demonstrate practical delivery across backend systems, data workflows, and operator-friendly product UI.
@@ -37,6 +39,15 @@ PropIntel currently runs end-to-end as a complete enrichment pipeline + dashboar
 - provider-aware runtime controls for concurrency and request pacing
 
 Ongoing work is focused on deployment and post-MVP extensions (integrations, additional enrichment sources, and operational hardening).
+
+---
+
+## Dashboard Screenshots
+
+<img width="1862" height="996" alt="image" src="https://github.com/user-attachments/assets/57d07725-89fd-4b2d-b47e-81fc8bb282d4" />
+<img width="1860" height="989" alt="image" src="https://github.com/user-attachments/assets/c888b9cb-e15a-4d3b-b418-1e802d2f8616" />
+<img width="1851" height="991" alt="image" src="https://github.com/user-attachments/assets/89957982-cc6d-4f1b-b59a-aecb39e32deb" />
+<img width="1867" height="986" alt="image" src="https://github.com/user-attachments/assets/a78a199b-60eb-4f88-86c6-5839dd5e6d45" />
 
 ---
 
@@ -341,5 +352,6 @@ fly deploy -c deploy/fly/frontend.fly.toml
 - Rotate any development keys before public release.
 
 ---
+
 
 Built with love for practical lead intelligence and clean, reliable data workflows.

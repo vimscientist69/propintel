@@ -108,10 +108,10 @@ Why: shows production engineering maturity with little extra complexity.
 
 Publish when all checks below pass:
 
-- [ ] CI workflow exists and is green on default branch.
-- [ ] Concurrency/rate-limit feature has dedicated tests.
-- [ ] No secrets in repository; `.env.example` complete.
-- [ ] Dashboard responsive behavior verified on mobile/tablet/desktop.
+- [x] CI workflow exists and is green on default branch.
+- [x] Concurrency/rate-limit feature has dedicated tests.
+- [x] No secrets in repository; `.env.example` complete.
+- [x] Dashboard responsive behavior verified on mobile/tablet/desktop.
 
 ---
 

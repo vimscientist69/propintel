@@ -1,160 +1,259 @@
-# PropIntel
+# 🧠 PropIntel
 
-Production-style real estate lead intelligence platform.
+PropIntel is a production-style **real estate lead intelligence platform** that ingests raw lead datasets, enriches them from external sources, verifies contact quality, and ranks lead readiness for outreach.
 
-## Initial Structure
+Built as a portfolio project to demonstrate practical delivery across backend systems, data workflows, and operator-friendly product UI.
 
-- `backend/api` - FastAPI route handlers and job endpoints
-- `backend/services` - enrichment, scraping, verification, scoring logic
-- `backend/core` - parsing, normalization, deduplication utilities
-- `frontend/dashboard` - React + Vite dashboard (runs separately from API)
-- `config/sources.yaml` - configurable source extraction settings
-- `output` - generated export artifacts
-- `logs` - runtime logs written by the CLI (timestamped files under `logs/`)
-- `runner.py` - CLI entrypoint for API and pipeline runs
+### Why clients pick this (quick pitch)
+- You get a repeatable lead intelligence workflow: upload files, run jobs, monitor progress, and export ranked leads.
+- It is resilient for long-running processing: batching, partial result persistence, termination controls, and resume support.
+- It is operator-friendly: dashboard tabs for analytics, job history, exploration, and runtime settings profiles.
 
-## Quick Start
+---
 
-1. Create a Python 3.11+ virtual environment
-2. Install dependencies:
-   - `pip install -r requirements.txt`
-3. Start the API via CLI:
-   - `python runner.py api --reload`
-4. Health check:
-   - `curl http://127.0.0.1:8000/health`
-### Dashboard (React) local workflow
+## 🎯 Features
 
-- Install frontend dependencies:
-  - `cd frontend/dashboard && npm install`
-- Run Vite dev server:
-  - `npm run dev`
-- Open dashboard:
-  - `http://127.0.0.1:5173`
-- Keep API running in parallel:
-  - `python runner.py api --reload`
+- **Flexible ingestion**: CSV, JSON, and PropFlux-style inputs.
+- **Website enrichment**: contact extraction, chatbot detection, freshness signals, website speed scoring.
+- **Google Maps enrichment**: business matching, phone/website/location augmentation.
+- **Conflict resolution**: source-aware candidate merging with enrichment history.
+- **Contact verification**: `verified` / `likely` / `low` quality model.
+- **Lead scoring**: configurable scoring engine with explainable `lead_reason`.
+- **Batch processing**: incremental writes to DB, lower memory pressure, partial visibility.
+- **Resumable jobs**: failed/terminated jobs can be resumed.
+- **Concurrency + rate limiting**: provider-aware limits for Serper and Google Maps.
+- **Responsive dashboard**: control panel, analytics, job history, data explorer, engine settings.
 
-## CLI Usage
+---
 
-`runner.py` supports two subcommands:
+## 📊 Current State
 
-- `api` - start the FastAPI server
-- `run` - execute the local pipeline scaffold with CLI configuration
+PropIntel currently runs end-to-end as a complete enrichment pipeline + dashboard system with:
+- strict config schema validation
+- SQLite-backed job/result persistence
+- batch lifecycle tracking (`pending/processing/completed/failed/terminated`)
+- partial results during processing
+- stop + resume controls
+- provider-aware runtime controls for concurrency and request pacing
+
+Ongoing work is focused on deployment and post-MVP extensions (integrations, additional enrichment sources, and operational hardening).
+
+---
+
+## 📋 Requirements
+
+- Python 3.11+
+- Node.js 20+ (for dashboard build/dev)
+- API keys for optional external enrichment:
+  - `SERPER_API_KEY`
+  - `GOOGLE_MAPS_API_KEY`
+
+---
+
+## 🚀 Quick Start
+
+### 1. Setup backend
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 2. Configure environment
+
+Create `.env` from `.env.example` and fill keys if you want external enrichment:
+
+```bash
+cp .env.example .env
+```
+
+### 3. Start API
+
+```bash
+python runner.py api --host 127.0.0.1 --port 8000 --reload
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+### 4. Start dashboard
+
+```bash
+cd frontend/dashboard
+npm install
+npm run dev
+```
+
+Open:
+- Dashboard: `http://127.0.0.1:5173`
+- API: `http://127.0.0.1:8000`
+
+---
+
+## 🖥 CLI Usage
+
+`runner.py` supports:
+- `api` — start FastAPI server
+- `run` — execute pipeline locally and export artifacts
 
 Examples:
 
-- Start API with custom host/port:
-  - `python runner.py api --host 0.0.0.0 --port 8080 --reload --log-level debug`
-- Run pipeline with CSV input:
-  - `python runner.py run --input data/leads.csv --input-format csv --config config/sources.yaml --output output --log-level info`
-- Run pipeline with PropFlux input:
-  - `python runner.py run --input data/propflux_export.json --input-format propflux`
+```bash
+# Start API
+python runner.py api --host 0.0.0.0 --port 8080 --reload --log-level debug
 
-All CLI runs log to `logs/propintel_YYYYMMDD_HHMMSS.log` and stderr via `loguru`.
+# Run pipeline with CSV input
+python runner.py run --input data/leads.csv --input-format csv --config config/sources.yaml --output output --log-level info
 
-### Pipeline Outputs (CLI `run`)
-The CLI creates a timestamped folder under `--output` (defaults to `output/`), like:
-`output/20260325_153000/`
+# Run pipeline with PropFlux-like JSON
+python runner.py run --input data/propflux_export.json --input-format propflux
+```
 
-Inside that folder, filenames include the same timestamp:
+---
+
+## Output (where results go)
+
+CLI runs create a timestamped folder under `output/`:
+
+`output/<timestamp>/`
+
+Artifacts per run:
 - `leads_<timestamp>.json`
 - `leads_<timestamp>.csv`
 - `rejected_rows_<timestamp>.json`
 - `run_summary_<timestamp>.json`
+- logs in `logs/propintel_<timestamp>.log`
 
-### Basic Website Enrichment
-- Website enrichment runs during pipeline processing (best effort, non-fatal).
-- If a lead has no `website`, the pipeline can attempt discovery via Serper using `company_name` (+ optional `location`).
-- If no website is found, enrichment is skipped for that lead.
-- Configure behavior in `config/sources.yaml` under `sources.website` (`enabled`, `discover_with_serper`, timeouts, chatbot keywords).
-- Set `SERPER_API_KEY` in `.env` (see `.env.example`).
+---
 
-### Google Maps Enrichment (Week 2)
-- Google Maps enrichment runs after website enrichment (best effort, non-fatal).
-- Configure behavior in `config/sources.yaml` under `sources.google_maps`:
-  - `enabled`, `timeout_seconds`, `max_retries`, `min_name_match_score`, `region`, `language`
-- Set `GOOGLE_MAPS_API_KEY` in `.env` (see `.env.example`).
-- Candidate matching rules:
-  - company-name match is required
-  - location matching is optional and only applied when usable location is provided
-- Location behavior:
-  - if location is missing, matching runs name-only
-  - if location is invalid/unstructured, API normalization is attempted
-  - if normalization fails, matching still runs name-only
-  - when a better canonical location is resolved from Google, it is written back to `location`
+## Client-Facing Walkthrough (how this delivers results)
 
-### Enrichment History and Conflict Resolution
-- Final canonical fields remain: `website`, `email`, `phone`, `location`.
-- Each lead now includes `enrichment_history` with:
-  - `candidates` per field from `input`, `website_enrichment`, and `google_maps`
-  - `decisions` per field with chosen source/value and tie-break metadata
-  - `stage_errors` for non-fatal enrichment failures
-- Conflict policy:
-  - prefer highest-confidence validated candidate
-  - on website ties, prefer verified Google Maps candidate
-  - otherwise keep current canonical value on tie
-- Advanced parser additions:
-  - JSON-LD (`application/ld+json`) contact extraction is used alongside HTML text/link parsing
-  - contact-like pages (`/contact`, `/about`, `/team`, `/agents`) are fetched opportunistically
-  - email normalization rejects disposable domains; phone normalization prefers E.164 when available
-- Run summary now includes quality metrics:
-  - `schema_contacts_used`
-  - `email_disposable_rejected`
-  - `multi_page_fetch_success`
-  - `phone_e164_valid_rate`
+PropIntel is built for repeatable operations, not one-off scripts.
 
-### Contact verification (Week 3)
-- After conflict resolution, each lead gets `contact_quality` (`verified` / `likely` / `low`) from the same rules as `contact_parser` (format, disposable email, E.164 phone): both valid → `verified`, one valid → `likely`, otherwise → `low`.
-- `verification` on each lead holds per-field validity and reasons; a copy is stored under `enrichment_history.verification`.
-- End-to-end CLI testing with sample data: see `docs/verification_e2e_testing.md`.
+### How it works
+1. A dataset is uploaded (`POST /jobs`) or run through CLI.
+2. Input rows are mapped/validated, normalized, deduplicated.
+3. Job is split into batches and persisted in SQLite (`job_batches`).
+4. Enrichment runs with configurable concurrency and provider-aware rate limits.
+5. Each completed batch writes leads immediately to DB (partial results available).
+6. Verification, conflict resolution, and scoring produce final lead intelligence fields.
+7. Dashboard/API surfaces telemetry, progress, outputs, and resume/termination controls.
 
-### Lead scoring (configuration)
+---
 
-- **`backend/services/scorer.py`** runs after verification on each lead when **`sources.scoring.enabled`** is **`true`** (default in `config/sources.yaml`). It fills **`lead_score`** (0–100), **`lead_reason`**, and **`confidence_score`** (same scale as score for the MVP).
-- Configure **`enabled`**, **`base_score`**, and **`weights`** (contact quality, chatbot penalty, freshness, website, Google Maps / location / agent bonuses). The same shape is in **`config/sources_verification_local.yaml`** for offline runs.
-- When **`scoring.enabled`** is **`false`**, those fields are **not** set on the lead (no score step).
+## Dashboard Documentation (what to click + what to expect)
 
-## API Endpoints
+The dashboard lives in `frontend/dashboard/` and talks to the FastAPI backend.
 
-These endpoints trigger the same Week 1 ingestion pipeline as the CLI.
+### Main Control Panel
+- Upload dataset (`csv | json | propflux`)
+- Start, terminate, and resume jobs
+- See live progress (started/completed batches, row progress)
+- See recent jobs and quick-select active job
 
-### Submit Job
-- `POST /jobs` (multipart form)
+### Latest Listings
+- Filter by score, contact quality, chatbot signal, freshness signal
+- Export active job results (JSON/CSV once completed)
+- Shows partial results while job is processing
 
-Request form fields:
-- `file`: dataset upload
-- `input_format` (optional, default `csv`): `csv | json | propflux`
+### Analytics
+- Total jobs, completed jobs
+- Average lead score
+- Verified contact rate
 
-Example:
+### Job History
+- Full job listing with statuses and run metadata
+- Mobile-friendly card layout for non-desktop widths
 
-```bash
-curl -s -X POST "http://127.0.0.1:8000/jobs" \
-  -F "file=@data/leads.csv" \
-  -F "input_format=csv"
-```
-
-Response:
-- `{ "job_id": "<job_id>", "status": "processing" }`
-
-### Poll Status
-- `GET /jobs/{job_id}`
-
-### Terminate Running Job
-- `POST /jobs/{job_id}/terminate`
-
-### Fetch Results
-- `GET /jobs/{job_id}/results`
-
-Behavior:
-- If not completed: HTTP `202` with `{ "job_id": "...", "status": "<processing|uploaded|...>" }`
-- If completed: HTTP `200` with `{ "job_id": "...", "status": "completed", "leads": [ ... ] }`
-- If failed/terminated: HTTP `409` with `{ "job_id": "...", "status": "failed|terminated", "error": "..." }`
+### Data Explorer
+- Select a job and inspect rows in detail
+- Live reload + responsive card/table behavior
 
 ### Engine Settings
+- Validate and save profile JSON
+- Activate/delete profiles
+- Active profile is used by job processing
+
+---
+
+## API Endpoints (used by dashboard + integrations)
+
+### Jobs
+- `POST /jobs` — create job from uploaded file
+- `GET /jobs` — paginated jobs list (`limit`, `offset`, optional `status`)
+- `GET /jobs/{job_id}` — status + counts + batch progress
+- `POST /jobs/{job_id}/terminate` — stop running job
+- `POST /jobs/{job_id}/resume` — resume failed/terminated job
+- `GET /jobs/{job_id}/batches` — batch lifecycle rows
+
+### Results
+- `GET /jobs/{job_id}/results` — returns current rows (`partial=true` until completed)
+- `GET /jobs/{job_id}/rejected` — rejected rows for the job
+- `GET /jobs/{job_id}/export?format=csv|json` — export completed results
+
+### Settings Profiles
 - `GET /settings`
 - `POST /settings/validate`
 - `PUT /settings`
 - `POST /settings/activate`
+- `DELETE /settings/{name}`
 
-## Notes
+---
 
-Project scope and goals are defined in `PROJECT_NOTE.md`.
+## Runtime Config (high-level)
+
+Configured in `config/sources.yaml` or via Engine Settings profiles:
+- `input` mapping/validation rules
+- `website` enrichment controls
+- `google_maps` enrichment controls
+- `scoring` weights and score behavior
+- `runtime` batching + worker concurrency + provider rate limits
+
+Minimal runtime defaults are included; advanced knobs are optional.
+
+---
+
+## Testing
+
+Run backend tests:
+
+```bash
+python -m unittest discover -s tests -p "test_*.py"
+```
+
+Build dashboard:
+
+```bash
+cd frontend/dashboard
+npm run build
+```
+
+CI workflow is included at `.github/workflows/ci.yml` for backend tests + frontend build.
+
+---
+
+## Deployment (Placeholder)
+
+Deployment implementation is intentionally deferred to the next phase.
+
+Planned follow-up includes:
+- API + dashboard production deployment setup
+- persistent storage strategy for SQLite
+- production environment/config strategy
+- deployment runbook and rollout checklist
+
+---
+
+## Security Notes
+
+- Never commit real API keys or `.env` files.
+- Use `.env.example` as the template.
+- Rotate any development keys before public release.
+
+---
+
+Built with love for practical lead intelligence and clean, reliable data workflows.

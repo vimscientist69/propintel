@@ -4,6 +4,9 @@ primary_region = "jnb"
 [build]
   dockerfile = "deploy/fly/frontend.Dockerfile"
 
+[env]
+  BACKEND_UPSTREAM = "propintel-api.internal:8000"
+
 [http_service]
   internal_port = 8080
   force_https = true

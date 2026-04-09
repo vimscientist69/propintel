@@ -272,6 +272,7 @@ docker run -d \
 docker run -d \
   --name propintel-web \
   --network propintel-net \
+  -e BACKEND_UPSTREAM=propintel-api:8000 \
   -p 8080:8080 \
   propintel-web:local
 ```
@@ -287,6 +288,8 @@ docker network rm propintel-net
 
 Notes:
 - `deploy/fly/nginx.conf` routes `/jobs`, `/settings`, and `/health` to `propintel-api`.
+- Frontend image supports `BACKEND_UPSTREAM`; for local Docker use `propintel-api:8000`.
+- If you changed nginx-related files, rebuild `propintel-web:local` before re-running.
 - Keep `.env` local only; do not commit secrets.
 
 ---
@@ -341,8 +344,9 @@ fly deploy -c deploy/fly/frontend.fly.toml
 
 ### Important notes
 
-- Backend is expected at `http://propintel-api.internal:8000` (used by `deploy/fly/nginx.conf`).
-- If you rename the backend app, update `deploy/fly/nginx.conf` accordingly.
+- Frontend app uses `BACKEND_UPSTREAM` (set in `deploy/fly/frontend.fly.toml`) and defaults to `propintel-api:8000` in local Docker.
+- Fly deployment sets `BACKEND_UPSTREAM=propintel-api.internal:8000`.
+- If you rename the backend Fly app, update `BACKEND_UPSTREAM` in `deploy/fly/frontend.fly.toml`.
 - Frontend does not require public API URL env var in this topology; browser calls same-origin paths, nginx proxies internally.
 
 ---

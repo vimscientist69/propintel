@@ -204,12 +204,9 @@ README.md
 - Python 3.11+  
 - FastAPI (API layer)  
 - Requests / BeautifulSoup (scraping)  
-- Playwright (optional dynamic extraction)  
-- pandas (data processing)  
-- PostgreSQL (storage)  
-- Next.js (dashboard frontend)  
-- Docker (optional)  
-- Railway / Render (deployment)  
+- React + Vite (dashboard frontend)  
+- SQLite (jobs/results/settings storage)  
+- Fly.io (deployment target)  
 
 ---
 
@@ -246,10 +243,20 @@ This allows easy extension to new enrichment sources.
 Core endpoints:
 
 ```
-POST /upload
 POST /jobs
+GET /jobs
 GET /jobs/{id}
-GET /results/{id}
+POST /jobs/{id}/terminate
+POST /jobs/{id}/resume
+GET /jobs/{id}/results
+GET /jobs/{id}/rejected
+GET /jobs/{id}/batches
+GET /jobs/{id}/export?format=csv|json
+GET /settings
+POST /settings/validate
+PUT /settings
+POST /settings/activate
+DELETE /settings/{name}
 ```
 
 Responsibilities:
@@ -298,7 +305,7 @@ The final project must include:
 - clean structured output
 - sample dataset
 - README with usage instructions
-- deployed version (cloud)
+- deployed version (Fly.io: frontend public, backend internal)
 
 ---
 
@@ -331,8 +338,8 @@ The final project must include:
 ## **Week 4**
 
 - [x] dashboard
-- [ ] deployment
-- [ ] polish + documentation
+- [x] deployment strategy (Fly.io topology + configs)
+- [x] polish + documentation
 
 ### Week 4 Dashboard Implementation Plan
 
@@ -346,23 +353,25 @@ The final project must include:
 - Keep auth out of scope for MVP; run in trusted environment first.
 
 #### 2) Frontend stack and app skeleton
-- Framework: Next.js (App Router) + TypeScript.
-- UI: lightweight component library (or Tailwind + headless components).
-- Data fetching: React Query (or SWR) for polling and caching job/results endpoints.
-- Base pages:
-  - `/` -> jobs list + create/upload panel
-  - `/jobs/[id]` -> job detail, status, summary counts, result table
-  - `/jobs/[id]/rejected` -> rejected row diagnostics
+- Framework: React + Vite.
+- UI: custom modern dashboard styling and components.
+- Data fetching: native fetch + polling from dashboard state.
+- Tabs:
+  - Control Panel (upload/create/stop/resume)
+  - Analytics
+  - Job History
+  - Data Explorer
+  - Engine Settings
 
 #### 3) API contract alignment (must-haves)
 - Use existing endpoints first:
   - `POST /jobs` (multipart upload)
   - `GET /jobs` (paginated listing)
-  - `GET /jobs/{id}` (status + counts + error)
-  - `GET /jobs/{id}/results` (leads when completed)
+  - `GET /jobs/{id}` (status + counts + batch progress + error)
+  - `GET /jobs/{id}/results` (partial rows while processing, full set on completion)
 - Add endpoint enhancements only if needed by UI:
   - export route (`/jobs/{id}/export?format=csv|json`)
-  - optional server-side lead filtering for large result sets
+  - `POST /jobs/{id}/terminate`, `POST /jobs/{id}/resume`, `GET /jobs/{id}/batches`
 
 #### 4) Core UI flows
 - **Upload + create job**
@@ -388,12 +397,13 @@ The final project must include:
 - URL state for filters/pagination so views are shareable.
 
 #### 7) Deployment plan
-- Deploy API and dashboard separately:
-  - API: Render/Railway (Python service)
-  - Dashboard: Vercel/Netlify (Next.js)
-- Configure API base URL via environment variable on dashboard.
-- Enable CORS only for dashboard origin(s).
-- Persist SQLite volume for API deployment (or migrate to Postgres if host is ephemeral).
+- Deploy on Fly.io with network split:
+  - Frontend service exposed publicly (external port)
+  - Backend service private/internal-only (Fly private network)
+- Frontend calls backend via internal Fly service URL/reverse-proxy path.
+- Keep backend port unexposed to the public internet.
+- Configure API base URL via env on frontend and strict CORS for frontend origin only.
+- Persist SQLite volume on backend Fly app.
 
 #### 8) Testing and acceptance
 - Frontend:

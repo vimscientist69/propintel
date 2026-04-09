@@ -236,15 +236,59 @@ CI workflow is included at `.github/workflows/ci.yml` for backend tests + fronte
 
 ---
 
-## Deployment (Placeholder)
+## Deployment (Fly.io)
 
-Deployment implementation is intentionally deferred to the next phase.
+Deployment is configured for a **two-app Fly.io topology**:
+- `propintel-web` (public): serves the React dashboard
+- `propintel-api` (private/internal): serves FastAPI + SQLite
 
-Planned follow-up includes:
-- API + dashboard production deployment setup
-- persistent storage strategy for SQLite
-- production environment/config strategy
-- deployment runbook and rollout checklist
+The frontend app reverse-proxies `/jobs`, `/settings`, and `/health` to the internal backend host.
+
+Deployment assets:
+- `deploy/fly/backend.Dockerfile`
+- `deploy/fly/frontend.Dockerfile`
+- `deploy/fly/nginx.conf`
+- `deploy/fly/backend.fly.toml`
+- `deploy/fly/frontend.fly.toml`
+
+### 1) Backend app (internal)
+
+```bash
+# Create app (one-time)
+fly apps create propintel-api
+
+# Create persistent volume for SQLite/uploads (one-time)
+fly volumes create propintel_data --size 1 --region jnb --app propintel-api
+
+# Set backend secrets
+fly secrets set SERPER_API_KEY=... GOOGLE_MAPS_API_KEY=... -a propintel-api
+
+# Deploy backend
+fly deploy -c deploy/fly/backend.fly.toml
+```
+
+After first deploy, remove any public IPs from backend so it remains internal-only:
+
+```bash
+fly ips list -a propintel-api
+fly ips release <IP_ADDRESS> -a propintel-api
+```
+
+### 2) Frontend app (public)
+
+```bash
+# Create app (one-time)
+fly apps create propintel-web
+
+# Deploy frontend
+fly deploy -c deploy/fly/frontend.fly.toml
+```
+
+### Important notes
+
+- Backend is expected at `http://propintel-api.internal:8000` (used by `deploy/fly/nginx.conf`).
+- If you rename the backend app, update `deploy/fly/nginx.conf` accordingly.
+- Frontend does not require public API URL env var in this topology; browser calls same-origin paths, nginx proxies internally.
 
 ---
 

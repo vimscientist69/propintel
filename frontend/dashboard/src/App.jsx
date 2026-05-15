@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Analytics } from "./components/Analytics";
 import { AppShell } from "./components/AppShell";
 import { ControlPanel } from "./components/ControlPanel";
+import { JobHistory } from "./components/JobHistory";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
@@ -407,48 +408,26 @@ export function App() {
           onRefresh={loadAnalyticsRows}
           rowCountLabel={`${analyticsRows.length} rows`}
         />
+      ) : activeTab === "history" ? (
+        <JobHistory
+          jobs={jobs}
+          jobsTotal={jobsTotal}
+          jobsOffset={jobsOffset}
+          jobsPage={jobsPage}
+          jobsPageCount={jobsPageCount}
+          startIdx={startIdx}
+          endIdx={endIdx}
+          jobsStatus={jobsStatus}
+          setJobsStatus={setJobsStatus}
+          setJobsOffset={setJobsOffset}
+          jobLimit={JOB_LIMIT}
+          isLoadingJobs={isLoadingJobs}
+          onRefresh={loadJobs}
+          apiBase={API_BASE}
+        />
       ) : (
         <div className="legacy-tab">
-        {activeTab === "history" && (
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Job History</h2>
-                <p>Audit and inspect all runs with status and run metadata.</p>
-              </div>
-              <button type="button" className="ghost" onClick={loadJobs}>
-                Refresh
-              </button>
-            </div>
-            {isLoadingJobs && <p className="muted">Loading jobs...</p>}
-            <div className="table-wrap">
-              <table className="job-history-table">
-                <thead>
-                  <tr>
-                    <th>Job ID</th>
-                    <th>Status</th>
-                    <th>Format</th>
-                    <th>Created</th>
-                    <th>Counts</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {jobs.map((job) => (
-                    <tr key={job.job_id}>
-                      <td className="mono" data-label="Job ID">{job.job_id}</td>
-                      <td data-label="Status"><span className={`pill pill-${job.status}`}>{job.status}</span></td>
-                      <td data-label="Format">{job.input_format || "-"}</td>
-                      <td data-label="Created">{job.created_at || "-"}</td>
-                      <td data-label="Counts">{job.counts ? JSON.stringify(job.counts) : "-"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        {activeTab === "explorer" && (
+                {activeTab === "explorer" && (
           <section className="panel">
             <div className="panel-head">
               <div>

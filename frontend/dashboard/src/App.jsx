@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Analytics } from "./components/Analytics";
 import { AppShell } from "./components/AppShell";
 import { ControlPanel } from "./components/ControlPanel";
+import { DataExplorer } from "./components/DataExplorer";
 import { JobHistory } from "./components/JobHistory";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
@@ -44,6 +45,7 @@ export function App() {
   const [freshnessFilter, setFreshnessFilter] = useState("");
   const [explorerJobId, setExplorerJobId] = useState("");
   const [explorerRows, setExplorerRows] = useState([]);
+  const [explorerLoading, setExplorerLoading] = useState(false);
   const [settingsName, setSettingsName] = useState("custom");
   const [settingsPayloadText, setSettingsPayloadText] = useState("{}");
   const [settingsStatus, setSettingsStatus] = useState("");
@@ -247,11 +249,19 @@ export function App() {
   const loadExplorerRows = async () => {
     if (!explorerJobId) return;
     try {
+      setExplorerLoading(true);
       const payload = await api(`/jobs/${explorerJobId}/results`);
       setExplorerRows(payload.leads || []);
     } catch {
       setExplorerRows([]);
+    } finally {
+      setExplorerLoading(false);
     }
+  };
+
+  const openExplorerExport = (format) => {
+    if (!explorerJobId) return;
+    window.open(`${API_BASE}/jobs/${explorerJobId}/export?format=${format}`, "_blank");
   };
 
   const loadSettings = async () => {
@@ -425,78 +435,28 @@ export function App() {
           onRefresh={loadJobs}
           apiBase={API_BASE}
         />
+      ) : activeTab === "explorer" ? (
+        <DataExplorer
+          jobs={jobs}
+          explorerJobId={explorerJobId}
+          setExplorerJobId={setExplorerJobId}
+          explorerJobStatus={explorerJob?.status}
+          explorerRows={explorerRows}
+          explorerLoading={explorerLoading}
+          minScore={minScore}
+          setMinScore={setMinScore}
+          qualityFilter={qualityFilter}
+          setQualityFilter={setQualityFilter}
+          chatbotFilter={chatbotFilter}
+          setChatbotFilter={setChatbotFilter}
+          freshnessFilter={freshnessFilter}
+          setFreshnessFilter={setFreshnessFilter}
+          onReload={loadExplorerRows}
+          onExport={openExplorerExport}
+        />
       ) : (
         <div className="legacy-tab">
-                {activeTab === "explorer" && (
-          <section className="panel">
-            <div className="panel-head">
-              <div>
-                <h2>Data Explorer</h2>
-                <p>Search and inspect lead rows for a selected job.</p>
-                {(explorerJob?.status === "processing" || explorerJob?.status === "uploaded") && (
-                  <span className="status-chip partial-chip">Showing partial batch results</span>
-                )}
-              </div>
-              <button type="button" className="ghost" onClick={loadExplorerRows}>
-                Reload
-              </button>
-            </div>
-            <div className="filters">
-              <div className="field compact">
-                <label htmlFor="explorerJob">Job</label>
-                <select id="explorerJob" value={explorerJobId} onChange={(e) => setExplorerJobId(e.target.value)}>
-                  <option value="">select a job</option>
-                  {jobs.map((job) => (
-                    <option key={job.job_id} value={job.job_id}>
-                      {job.job_id.slice(0, 8)} ({job.status})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field compact">
-                <label htmlFor="minScoreExplorer">Min score</label>
-                <input
-                  id="minScoreExplorer"
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={minScore}
-                  onChange={(e) => setMinScore(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="table-wrap">
-              <table className="explorer-table">
-                <thead>
-                  <tr>
-                    <th>Company</th>
-                    <th>Status</th>
-                    <th>Website</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {explorerRows
-                    .filter((row) => Number(row.lead_score || 0) >= Number(minScore || 0))
-                    .map((row, idx) => (
-                      <tr key={`${row.company_name || "row"}-${idx}`}>
-                        <td data-label="Company">{row.company_name || ""}</td>
-                        <td data-label="Status"><span className={`pill pill-${row.contact_quality || "unknown"}`}>{row.contact_quality || "unknown"}</span></td>
-                        <td data-label="Website">{row.website || ""}</td>
-                        <td data-label="Email">{row.email || ""}</td>
-                        <td data-label="Phone">{row.phone || ""}</td>
-                        <td data-label="Score">{row.lead_score ?? ""}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        )}
-
-        {activeTab === "settings" && (
+                {activeTab === "settings" && (
           <section className="panel">
             <div className="panel-head">
               <div>
